@@ -12,7 +12,7 @@ import {
   getOnTokenExpired,
   clearTokens
 } from './authToken';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // ==========================================
 // Lovable Cloud 配置
