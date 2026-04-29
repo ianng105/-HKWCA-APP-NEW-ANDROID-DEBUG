@@ -3,7 +3,18 @@ import { StyleSheet, Text, View } from 'react-native';
 
 export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'paid' | string | null | undefined;
 
-function getStyle(status: PaymentStatus) {
+function getStyle(status: PaymentStatus, variant?: 'fish' | 'bird') {
+  if (variant === 'bird') {
+    switch (status) {
+      case 'approved':
+      case 'paid':
+        return { bg: '#DCFCE7', fg: '#166534', label: '審核完成' };
+      case 'pending':
+      case 'rejected':
+      default:
+        return { bg: '#FEF3C7', fg: '#92400E', label: '審核中' };
+    }
+  }
   switch (status) {
     case 'approved':
       return { bg: '#DCFCE7', fg: '#166534', label: '已批核' };
@@ -17,8 +28,8 @@ function getStyle(status: PaymentStatus) {
   }
 }
 
-export function StatusBadge({ status }: { status: PaymentStatus }) {
-  const s = getStyle(status);
+export function StatusBadge({ status, variant }: { status: PaymentStatus; variant?: 'fish' | 'bird' }) {
+  const s = getStyle(status, variant);
   return (
     <View style={[styles.badge, { backgroundColor: s.bg }]}> 
       <Text style={[styles.text, { color: s.fg }]}>{s.label}</Text>

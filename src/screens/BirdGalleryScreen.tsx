@@ -273,8 +273,8 @@ export function BirdGalleryScreen({ route }: Props) {
           </Text>
         </Pressable>
         <Pressable style={styles.filterCard} onPress={() => setPeriodModalVisible(true)}>
-          <Text style={styles.filterLabel}>時期</Text>
-          <Text style={styles.filterValue}>{periodFilter === 'all' ? '所有時期' : periods.find((p) => p.id === periodFilter)?.label || periodFilter}</Text>
+          <Text style={styles.filterLabel}>降水階段</Text>
+          <Text style={styles.filterValue}>{periodFilter === 'all' ? '所有降水階段' : periods.find((p) => p.id === periodFilter)?.label || periodFilter}</Text>
         </Pressable>
         <Pressable style={styles.filterCard} onPress={() => setDateModalVisible(true)}>
           <Text style={styles.filterLabel}>📅 日期</Text>
@@ -306,28 +306,21 @@ export function BirdGalleryScreen({ route }: Props) {
               <View style={styles.imageContainer}>
                 {item.file_url ? <Image source={{ uri: item.file_url }} style={styles.thumb} /> : <View style={[styles.thumb, { backgroundColor: '#E5E7EB' }]} />}
                 
-                {/* 刪除按鈕 */}
-                <Pressable
-                  style={styles.deleteButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleDelete(item);
-                  }}
-                >
-                  <Ionicons name="trash" size={18} color="#FFFFFF" />
-                </Pressable>
+
               </View>
 
               <View style={styles.cardBody}>
                 <View style={styles.rowBetween}>
                   <Text style={styles.cardTitle}>{item.ponds?.pond_id || '未指定魚塘'}</Text>
-                  <StatusBadge status={item.payment_status} />
+                  <StatusBadge status={item.payment_status} variant="bird" />
                 </View>
                 <Text style={styles.cardMeta}>{fmtDate(item.submission_timestamp)} · {getPeriodLabel(item.period, periods)}</Text>
 
+                {item.ponds?.name && item.ponds.name !== item.ponds?.pond_id ? (
                 <View style={styles.rowBetween}>
-                  <Text style={styles.cardMeta2}>{item.ponds?.name || ''}</Text>
+                  <Text style={styles.cardMeta2}>{item.ponds.name}</Text>
                 </View>
+                ) : null}
               </View>
             </Pressable>
           )}
@@ -368,18 +361,18 @@ export function BirdGalleryScreen({ route }: Props) {
         </SafeAreaView>
       </Modal>
 
-      {/* 時期篩選 */}
+      {/* 降水階段篩選 */}
       <Modal visible={periodModalVisible} animationType="slide" onRequestClose={() => setPeriodModalVisible(false)}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>選擇時期</Text>
+            <Text style={styles.modalTitle}>選擇降水階段</Text>
             <Pressable onPress={() => setPeriodModalVisible(false)}>
               <Text style={styles.modalClose}>關閉</Text>
             </Pressable>
           </View>
 
           <FlatList
-            data={[{ id: 'all', label: '所有時期' }, ...periods]}
+            data={[{ id: 'all', label: '所有降水階段' }, ...periods]}
             keyExtractor={(p) => p.id}
             ItemSeparatorComponent={() => <View style={styles.sep} />}
             renderItem={({ item }) => {

@@ -229,8 +229,8 @@ export function FishGalleryScreen({ route }: Props) {
           </Text>
         </Pressable>
         <Pressable style={styles.filterCard} onPress={() => setPeriodModalVisible(true)}>
-          <Text style={styles.filterLabel}>時期</Text>
-          <Text style={styles.filterValue}>{periodFilter === 'all' ? '所有時期' : periods.find((p) => p.id === periodFilter)?.label || periodFilter}</Text>
+          <Text style={styles.filterLabel}>降水階段</Text>
+          <Text style={styles.filterValue}>{periodFilter === 'all' ? '所有降水階段' : periods.find((p) => p.id === periodFilter)?.label || periodFilter}</Text>
         </Pressable>
         <Pressable style={styles.filterCard} onPress={() => setDateModalVisible(true)}>
           <Text style={styles.filterLabel}>📅 日期</Text>
@@ -270,9 +270,11 @@ export function FishGalleryScreen({ route }: Props) {
                 </View>
                 <Text style={styles.cardMeta}>{fmtDate(item.submission_timestamp)} · {getPeriodLabel(item.period, periods)}</Text>
 
+                {item.ponds?.name && item.ponds.name !== item.ponds?.pond_id ? (
                 <View style={styles.rowBetween}>
-                  <Text style={styles.cardMeta2}>{item.ponds?.name || ''}</Text>
+                  <Text style={styles.cardMeta2}>{item.ponds.name}</Text>
                 </View>
+                ) : null}
               </View>
             </Pressable>
           )}
@@ -313,18 +315,18 @@ export function FishGalleryScreen({ route }: Props) {
         </SafeAreaView>
       </Modal>
 
-      {/* 時期篩選 */}
+      {/* 降水階段篩選 */}
       <Modal visible={periodModalVisible} animationType="slide" onRequestClose={() => setPeriodModalVisible(false)}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>選擇時期</Text>
+            <Text style={styles.modalTitle}>選擇降水階段</Text>
             <Pressable onPress={() => setPeriodModalVisible(false)}>
               <Text style={styles.modalClose}>關閉</Text>
             </Pressable>
           </View>
 
           <FlatList
-            data={[{ id: 'all', label: '所有時期' }, ...periods]}
+            data={[{ id: 'all', label: '所有降水階段' }, ...periods]}
             keyExtractor={(p) => p.id}
             ItemSeparatorComponent={() => <View style={styles.sep} />}
             renderItem={({ item }) => {

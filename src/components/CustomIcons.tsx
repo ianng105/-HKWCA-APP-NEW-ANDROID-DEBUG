@@ -12,7 +12,7 @@ export function FishPondSubmitIcon({ size = 80, backgroundColor = 'transparent' 
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
       <Image
         source={require('../../assets/Camera_01_Fishpond.png')}
-        style={{ width: size, height: size }}
+        style={{ width: size * 0.9, height: size * 0.9 }}
         resizeMode="contain"
       />
     </View>
@@ -25,7 +25,7 @@ export function BirdSubmitIcon({ size = 80, backgroundColor = 'transparent' }: I
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
       <Image
         source={require('../../assets/Camera_02_Bird.png')}
-        style={{ width: size, height: size }}
+        style={{ width: size * 0.9, height: size * 0.9 }}
         resizeMode="contain"
       />
     </View>
@@ -38,7 +38,7 @@ export function FishPondGalleryIcon({ size = 80, backgroundColor = 'transparent'
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
       <Image
         source={require('../../assets/Album_01_Fishpond.png')}
-        style={{ width: size, height: size }}
+        style={{ width: size * 0.9, height: size * 0.9 }}
         resizeMode="contain"
       />
     </View>
@@ -51,7 +51,7 @@ export function BirdGalleryIcon({ size = 80, backgroundColor = 'transparent' }: 
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
       <Image
         source={require('../../assets/Album_02_Bird.png')}
-        style={{ width: size, height: size }}
+        style={{ width: size * 0.9, height: size * 0.9 }}
         resizeMode="contain"
       />
     </View>
@@ -64,7 +64,7 @@ export function FishPondRecordsIcon({ size = 80, backgroundColor = 'transparent'
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
       <Image
         source={require('../../assets/Record_01_Fishpond.png')}
-        style={{ width: size, height: size }}
+        style={{ width: size * 0.9, height: size * 0.9 }}
         resizeMode="contain"
       />
     </View>
@@ -82,7 +82,7 @@ export function BirdRecordsIcon({ size = 80, backgroundColor = 'transparent' }: 
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
       <Image
         source={require('../../assets/Record_02_Bird.png')}
-        style={{ width: size, height: size }}
+        style={{ width: size * 0.9, height: size * 0.9 }}
         resizeMode="contain"
       />
     </View>
@@ -99,5 +99,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    borderRadius: 16,
   },
 });

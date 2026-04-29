@@ -466,6 +466,7 @@ const styles = StyleSheet.create({
     flex: 2,
     padding: 12,
     justifyContent: 'center',
+    alignItems: 'center',
     borderRightWidth: 1,
     borderRightColor: '#D1D5DB',
   },

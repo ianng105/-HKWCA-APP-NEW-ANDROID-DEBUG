@@ -27,8 +27,7 @@ import type { RootStackParamList } from "../navigation/AppNavigator";
 const aboutProjectImage = require('../../assets/About_project_compressed.jpg');
 const projectNameImage = require('../../assets/Project_name_compressed.png');
 const hkwcaLogo = require('../../assets/HKWCA_Logo_compressed.png');
-const ccoLogo = require('../../assets/CCO_logo_compressed.png');
-const ccfsLogo = require('../../assets/CCFS_logo_compressed.png');
+const combinedLogo = require('../../assets/CCO_CCFS_combined.png');
 // 香港濕地保育協會圖片
 const aboutHKWCAImage = require('../../assets/About_HKWCA_compressed.jpg');
 const hkwcaLogoNew = require('../../assets/HKWCA_Logo_v2_compressed.png');
@@ -250,14 +249,11 @@ export function MoreScreen() {
               *計劃由香港濕地保育協會主辧，鄉郊保育辦公室及鄉郊保育資助計劃資助
             </Text>
 
-            {/* Logo 區域 - 原尺寸，一行一個 */}
+            {/* Logo 區域 */}
             <View style={styles.logoSection}>
               <Text style={styles.logoLabel}>資助：</Text>
               <View style={styles.logoSingleRow}>
-                <Image source={ccoLogo} style={styles.orgLogoFull} resizeMode="contain" />
-              </View>
-              <View style={styles.logoSingleRow}>
-                <Image source={ccfsLogo} style={styles.orgLogoFull} resizeMode="contain" />
+                <Image source={combinedLogo} style={styles.orgLogoFull} resizeMode="contain" />
               </View>
 
               <Text style={[styles.logoLabel, { marginTop: 16 }]}>主辦：</Text>
@@ -523,6 +519,8 @@ const styles = StyleSheet.create({
     color: "#374151",
     lineHeight: 22,
     marginBottom: 8,
+    paddingLeft: 12,
+    textIndent: -12,
   },
   aboutFooter: {
     fontSize: 13,
@@ -591,8 +589,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-start',
   },
+  logoCombinedRow: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    gap: 16,
+  },
   orgLogoFull: {
     width: 250,
     height: 100,
+  },
+  orgLogoHalf: {
+    width: 120,
+    height: 80,
   },
 });

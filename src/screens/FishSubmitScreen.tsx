@@ -130,7 +130,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
   const [photos, setPhotos] = useState<LocalPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percent: 0 });
-  const [isUploadCancelled, setIsUploadCancelled] = useState(false);
+  const isUploadCancelledRef = useRef(false);
   const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null);
   const [isWebViewLoaded, setIsWebViewLoaded] = useState(false); // 追蹤 WebView 是否已加載
   const [currentPage, setCurrentPage] = useState(1); // 追蹤當前頁面：1, 2 或 3
@@ -878,11 +878,11 @@ export function FishSubmitScreen({ navigation, route }: Props) {
 
       for (let i = 0; i < photos.length; i++) {
         // 檢查是否已取消上傳
-        if (isUploadCancelled) {
+        if (isUploadCancelledRef.current) {
           console.log('用戶取消上傳');
           setIsUploading(false);
           setUploadProgress({ current: 0, total: 0, percent: 0 });
-          setIsUploadCancelled(false);
+          isUploadCancelledRef.current = false;
           return;
         }
 
@@ -898,48 +898,35 @@ export function FishSubmitScreen({ navigation, route }: Props) {
 
         const filename = `${mode}_${timestamp.replace(/[:.]/g, '-')}_${i + 1}.jpg`;
 
-        // 檢查文件大小，決定使用哪種上傳方式
-        const fileInfo = await FileSystem.getInfoAsync(p.uri);
-        const fileSize = 'size' in fileInfo ? fileInfo.size : 0;
-        const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024; // 5MB
-        const useSignedUrl = fileSize > LARGE_FILE_THRESHOLD;
-
-        console.log(`📊 [Upload] 文件大小: ${fileSize} bytes, 使用簽名URL: ${useSignedUrl}`);
+        // 使用簽名 URL 直接上傳到 Storage（二進制直傳，速度更快）
+        console.log(`📤 [Upload] 使用簽名 URL 上傳...`);
 
         let storagePath: string | undefined;
 
-        if (useSignedUrl) {
-          // 方法一：簽名 URL 上傳（大文件）
-          console.log(`📤 [Upload] 使用簽名 URL 上傳...`);
+        // Step 1: 獲取簽名上傳 URL
+        const urlResult = await getSignedUploadUrl(
+          user?.owner_id ?? '',
+          filename,
+          'pond'
+        );
 
-          // Step 1: 獲取簽名上傳 URL
-          const urlResult = await getSignedUploadUrl(
-            user?.owner_id ?? '',
-            filename,
-            'pond'
-          );
-
-          if (!urlResult.success || !urlResult.signed_url || !urlResult.storage_path) {
-            throw new Error(urlResult.error || '獲取簽名上傳 URL 失敗');
-          }
-
-          // Step 2: 上傳文件到 Storage
-          const uploadResult = await uploadFileWithSignedUrl(
-            urlResult.signed_url,
-            p.uri,
-            'image/jpeg'
-          );
-
-          if (!uploadResult.success) {
-            throw new Error(uploadResult.error || '文件上傳失敗');
-          }
-
-          storagePath = urlResult.storage_path;
-          console.log(`✅ [Upload] 文件上傳成功，storage_path: ${storagePath}`);
-        } else {
-          // 方法二：Base64 上傳（小文件）
-          console.log(`📤 [Upload] 使用 Base64 上傳...`);
+        if (!urlResult.success || !urlResult.signed_url || !urlResult.storage_path) {
+          throw new Error(urlResult.error || '獲取簽名上傳 URL 失敗');
         }
+
+        // Step 2: 上傳文件到 Storage
+        const uploadResult = await uploadFileWithSignedUrl(
+          urlResult.signed_url,
+          p.uri,
+          'image/jpeg'
+        );
+
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || '文件上傳失敗');
+        }
+
+        storagePath = urlResult.storage_path;
+        console.log(`✅ [Upload] 文件上傳成功，storage_path: ${storagePath}`);
 
         console.log('GPS位置:', '上傳位置:', uploadLoc, 'EXIF:', p.exifGps, 'EXIF時間:', p.exif_datetime);
 
@@ -962,13 +949,8 @@ export function FishSubmitScreen({ navigation, route }: Props) {
           submission_timestamp: timestamp,
         };
 
-        // 根據上傳方式添加相應欄位
-        if (useSignedUrl && storagePath) {
+        if (storagePath) {
           body.storage_path = storagePath;
-        } else {
-          // 舊方法：Base64
-          const file_base64 = await FileSystem.readAsStringAsync(p.uri, { encoding: 'base64' });
-          body.file_base64 = file_base64;
         }
 
         // 移除 undefined 欄位
@@ -1042,12 +1024,12 @@ export function FishSubmitScreen({ navigation, route }: Props) {
     } finally {
       setIsUploading(false);
       setUploadProgress({ current: 0, total: 0, percent: 0 });
-      setIsUploadCancelled(false);
+      isUploadCancelledRef.current = false;
     }
   };
 
   const handleCancelUpload = () => {
-    setIsUploadCancelled(true);
+    isUploadCancelledRef.current = true;
   };
 
   const pondsWithLocation = useMemo(
@@ -1442,32 +1424,6 @@ export function FishSubmitScreen({ navigation, route }: Props) {
       </View>
       <ScrollView style={{ backgroundColor: '#fff' }} contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}>
 
-        {/* 第1頁：GPS位置顯示 */}
-      {currentPage === 1 && (
-          <View style={styles.block}>
-            <View style={styles.gpsInfoCard}>
-              <View style={styles.gpsInfoRow}>
-                <Ionicons name="location" size={16} color={picked ? '#059669' : '#6B7280'} />
-                <Text style={styles.gpsInfoLabel}>當前GPS位置</Text>
-            </View>
-              {picked ? (
-                <Text style={styles.gpsInfoCoord}>{formatCoord(picked)}</Text>
-              ) : (
-                <View style={styles.gpsWarningRow}>
-                  <Text style={styles.gpsWarningText}>未獲取GPS訊息</Text>
-                <Pressable
-                    style={styles.gpsSettingBtn} 
-                    onPress={() => void openSettings()}
-                  >
-                    <Ionicons name="settings" size={14} color="#111827" />
-                    <Text style={styles.gpsSettingText}>設定GPS</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
         {/* 第1頁：魚塘選擇 - 下拉菜單 */}
         {currentPage === 1 && (
           <View style={styles.block}>
@@ -1608,6 +1564,32 @@ export function FishSubmitScreen({ navigation, route }: Props) {
                 contentMode="mobile"
                 style={styles.map}
               />
+            </View>
+          </View>
+        )}
+
+        {/* 第1頁：GPS位置顯示 */}
+        {currentPage === 1 && (
+          <View style={styles.block}>
+            <View style={styles.gpsInfoCard}>
+              <View style={styles.gpsInfoRow}>
+                <Ionicons name="location" size={16} color={picked ? '#059669' : '#6B7280'} />
+                <Text style={styles.gpsInfoLabel}>當前GPS位置</Text>
+            </View>
+              {picked ? (
+                <Text style={styles.gpsInfoCoord}>{formatCoord(picked)}</Text>
+              ) : (
+                <View style={styles.gpsWarningRow}>
+                  <Text style={styles.gpsWarningText}>未獲取GPS訊息</Text>
+                <Pressable
+                    style={styles.gpsSettingBtn} 
+                    onPress={() => void openSettings()}
+                  >
+                    <Ionicons name="settings" size={14} color="#111827" />
+                    <Text style={styles.gpsSettingText}>設定GPS</Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
           </View>
         )}
@@ -2291,11 +2273,15 @@ const styles = StyleSheet.create({
   typeIconButton: {
     alignItems: 'center',
     gap: 3,
+    borderWidth: 2,
+    borderColor: '#DC2626',
+    borderRadius: 16,
+    padding: 12,
   },
   typeIconLabel: {
     fontSize: 16,
     fontWeight: '900',
-    color: '#065F46',
+    color: '#DC2626',
     marginTop: 0,
   },
 

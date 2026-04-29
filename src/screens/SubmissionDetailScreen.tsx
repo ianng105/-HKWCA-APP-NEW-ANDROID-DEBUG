@@ -347,7 +347,7 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
         </View>
 
         <View style={styles.metaRow}>
-          <Text style={styles.metaKey}>時期</Text>
+          <Text style={styles.metaKey}>降水階段</Text>
           <Text style={styles.metaVal}>{getPeriodLabel(first.period, first.category)}</Text>
         </View>
 
@@ -358,7 +358,7 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
 
         {/* 照片GPS - 照片EXIF內嵌位置 */}
         <View style={styles.metaRow}>
-          <Text style={styles.metaKey}>照片GPS</Text>
+          <Text style={styles.metaKey}>拍攝位置</Text>
           <View style={{ maxWidth: '70%', alignItems: 'flex-end' }}>
             <Text style={styles.metaVal}>
               {first?.exif_latitude && first?.exif_longitude
@@ -377,7 +377,7 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
         {first?.exif_latitude && first?.exif_longitude ? (
           <View style={styles.mapSection}>
             <View style={styles.mapHeader}>
-              <Text style={styles.mapTitle}>📍 照片內嵌位置</Text>
+              <Text style={styles.mapTitle}>📍 拍攝位置</Text>
               <Pressable
                 style={styles.openMapButton}
                 onPress={() => {

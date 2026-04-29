@@ -35,11 +35,19 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const isSinglePhotoMode = enablePreview;
 
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.25, maxZoom));
+    setZoom((prev) => Math.min(prev + 0.1, maxZoom));
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.25, minZoom));
+    setZoom((prev) => Math.max(prev - 0.1, minZoom));
+  };
+
+  const ZOOM_PRESETS = [1, 2, 4, 6, 8];
+  const handleZoomPreset = (preset: number) => {
+    // Map 1x, 2x, 4x, 6x, 8x linearly across the zoom range
+    const ratio = preset / 8;
+    const target = minZoom + ratio * (maxZoom - minZoom);
+    setZoom(Math.min(Math.max(target, minZoom), maxZoom));
   };
 
   if (!permission) {
@@ -167,12 +175,29 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
           <View style={styles.bottomControls}>
             {/* 左邊：縮放控制 */}
             <View style={styles.zoomControls}>
+              {ZOOM_PRESETS.map((preset) => (
+                <Pressable
+                  key={preset}
+                  style={[
+                    styles.zoomPresetButton,
+                    Math.abs(zoom - (preset - 1)) < 0.05 && styles.zoomPresetButtonActive,
+                  ]}
+                  onPress={() => handleZoomPreset(preset)}
+                >
+                  <Text style={[
+                    styles.zoomPresetText,
+                    Math.abs(zoom - (preset - 1)) < 0.05 && styles.zoomPresetTextActive,
+                  ]}>
+                    {preset}x
+                  </Text>
+                </Pressable>
+              ))}
+              <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 4 }} />
               <Pressable style={styles.zoomButton} onPress={handleZoomOut}>
-                <Ionicons name="remove" size={24} color="#FFFFFF" />
+                <Ionicons name="remove" size={20} color="#FFFFFF" />
               </Pressable>
-              <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
               <Pressable style={styles.zoomButton} onPress={handleZoomIn}>
-                <Ionicons name="add" size={24} color="#FFFFFF" />
+                <Ionicons name="add" size={20} color="#FFFFFF" />
               </Pressable>
             </View>
 
@@ -284,26 +309,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 20,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
-    minWidth: 80,
     justifyContent: 'center',
+    gap: 4,
+  },
+  zoomPresetButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 28,
+  },
+  zoomPresetButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  zoomPresetText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  zoomPresetTextActive: {
+    color: '#000000',
   },
   zoomButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  zoomText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    minWidth: 30,
-    textAlign: 'center',
-    marginHorizontal: 4,
   },
   galleryButton: {
     width: 50,
