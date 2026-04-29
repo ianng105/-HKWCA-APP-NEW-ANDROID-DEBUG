@@ -2273,8 +2273,6 @@ const styles = StyleSheet.create({
   typeIconButton: {
     alignItems: 'center',
     gap: 3,
-    borderWidth: 2,
-    borderColor: '#DC2626',
     borderRadius: 16,
     padding: 12,
   },
