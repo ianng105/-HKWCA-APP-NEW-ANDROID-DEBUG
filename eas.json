@@ -21,6 +21,9 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "ios": {
+        "buildNumber": "2"
       }
     }
   },
