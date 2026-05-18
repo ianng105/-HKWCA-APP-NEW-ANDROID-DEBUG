@@ -102,15 +102,12 @@ const styles = StyleSheet.create({
   iconButton: {
     alignItems: 'center',
     gap: 3,
-    borderWidth: 2,
-    borderColor: '#DC2626',
-    borderRadius: 16,
     padding: 12,
   },
   iconLabel: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#DC2626',
+    color: 'rgba(0, 153, 153, 1)',
     marginTop: 3,
   },
 });

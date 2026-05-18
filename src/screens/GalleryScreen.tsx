@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 30,
+    marginTop: 10,
     zIndex: 1,
   },
   titleContainer: {

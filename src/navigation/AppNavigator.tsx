@@ -168,7 +168,7 @@ function MainTabs() {
         name="Home" 
         component={HomeScreen} 
         options={{ 
-          title: '首頁'
+          title: '主頁'
         }} 
       />
       <Tab.Screen name="Gallery" component={GallerySelectionScreen} options={{ title: '相簿' }} listeners={{ tabPress: requireLogin }} />

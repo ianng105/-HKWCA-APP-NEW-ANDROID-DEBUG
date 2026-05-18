@@ -138,6 +138,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percent: 0 });
   const isUploadCancelledRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null);
   const [isWebViewLoaded, setIsWebViewLoaded] = useState(false); // 追蹤 WebView 是否已加載
   const [currentPage, setCurrentPage] = useState(1); // 追蹤當前頁面：1, 2 或 3
@@ -698,6 +699,8 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
     if (!validateForm()) return;
     setShowDisclaimer(false);
     setIsUploading(true);
+    setIsCancelling(false);
+    abortControllerRef.current = new AbortController();
     setUploadProgress({ current: 0, total: photos.length, percent: 0 });
 
     try {
@@ -724,8 +727,10 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         if (isUploadCancelledRef.current) {
           console.log('用戶取消上傳');
           setIsUploading(false);
+          setIsCancelling(false);
           setUploadProgress({ current: 0, total: 0, percent: 0 });
           isUploadCancelledRef.current = false;
+          Alert.alert('已取消', '已經取消上傳');
           return;
         }
 
@@ -744,11 +749,14 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
 
         let storagePath: string | undefined;
 
+        const signal = abortControllerRef.current?.signal;
+
         // Step 1: 獲取簽名上傳 URL
         const urlResult = await getSignedUploadUrl(
           user?.owner_id ?? '',
           filename,
-          'bird'
+          'bird',
+          signal,
         );
 
         if (!urlResult.success || !urlResult.signed_url || !urlResult.storage_path) {
@@ -759,7 +767,9 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         const uploadResult = await uploadFileWithSignedUrl(
           urlResult.signed_url,
           p.uri,
-          'image/jpeg'
+          'image/jpeg',
+          undefined,
+          signal,
         );
 
         if (!uploadResult.success) {
@@ -801,6 +811,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         await functionsFetch<unknown>('/app-submit-bird-photo', {
           method: 'POST',
           body,
+          signal,
         });
 
         console.log(`第 ${i + 1} 張照片提交成功`);
@@ -827,6 +838,12 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
       // 导航到主頁
       stackNav.navigate('Main', { screen: 'Home' });
     } catch (e: unknown) {
+      // 如果是用戶主動取消，不顯示錯誤
+      if (isUploadCancelledRef.current) {
+        console.log('用戶取消上傳');
+        Alert.alert('已取消', '已經取消上傳');
+        return;
+      }
       console.error('=== 提交失敗 ===');
       console.error('錯誤對象:', e);
       
@@ -858,17 +875,23 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
           );
         }
       } else {
-        Alert.alert('提交失敗', errorMsg);
+        Alert.alert('提交失敗', '請稍後再試');
       }
     } finally {
       setIsUploading(false);
+      setIsCancelling(false);
+      abortControllerRef.current = null;
       setUploadProgress({ current: 0, total: 0, percent: 0 });
       isUploadCancelledRef.current = false;
     }
   };
 
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const handleCancelUpload = () => {
+    setIsCancelling(true);
     isUploadCancelledRef.current = true;
+    abortControllerRef.current?.abort();
   };
 
   const pondsWithLocation = useMemo(
@@ -1182,14 +1205,14 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
 </html>`;
   }, [pondsWithLocation]); // 移除 selectedPondUuid 依賴，避免頻繁重新加載 WebView
 
-  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : insets.top;
 
   // 如果還沒選擇類型，顯示類型選擇界面
   if (!mode) {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
         {/* 頂部標題 */}
-        <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
+        <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
           <Text style={styles.title}>提交相片</Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -1233,7 +1256,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       {/* 頂部標題 */}
-      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
         <Pressable 
           onPress={() => {
             if (currentPage === 2) {
@@ -1407,32 +1430,6 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* 第1頁：GPS位置顯示 */}
-        {currentPage === 1 && (
-          <View style={styles.block}>
-            <View style={styles.gpsInfoCard}>
-              <View style={styles.gpsInfoRow}>
-                <Ionicons name="location" size={16} color={picked ? '#059669' : '#6B7280'} />
-                <Text style={styles.gpsInfoLabel}>當前GPS位置</Text>
-            </View>
-              {picked ? (
-                <Text style={styles.gpsInfoCoord}>{formatCoord(picked)}</Text>
-              ) : (
-                <View style={styles.gpsWarningRow}>
-                  <Text style={styles.gpsWarningText}>未獲取GPS訊息</Text>
-                <Pressable
-                    style={styles.gpsSettingBtn} 
-                    onPress={() => void openSettings()}
-                  >
-                    <Ionicons name="settings" size={14} color="#111827" />
-                    <Text style={styles.gpsSettingText}>設定GPS</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
         {/* 第1頁：下一頁按鈕 */}
         {currentPage === 1 && selectedPondUuid ? (
           <View style={styles.block}>
@@ -1442,7 +1439,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                 <Text style={styles.warningText}>無GPS訊號，請確保GPS已開啟且訊號良好</Text>
               </View>
             )}
-            
+
             {/* 淚滴標籤區 */}
             <View style={styles.tagsContainer}>
               {/* 紅色淚滴標：已選魚塘 */}
@@ -1453,7 +1450,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                   {selectedPond?.pond_id || ''}
                 </Text>
               </View>
-              
+
               {/* 藍色淚滴標：我的所有魚塘 */}
               <View style={[styles.tearDropTag, styles.tearDropTagBlue]}>
                 <Ionicons name="water" size={14} color="#2563EB" />
@@ -1463,12 +1460,12 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                 </Text>
               </View>
             </View>
-            
-            <Pressable 
+
+            <Pressable
               style={[
                 styles.nextPageBtn,
                 hasGpsPermission !== true && styles.disabled
-              ]} 
+              ]}
               onPress={async () => {
                 if (hasGpsPermission === true) {
                   setCurrentPage(2);
@@ -1489,6 +1486,32 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         ) : null}
+
+        {/* 第1頁：GPS位置顯示 */}
+        {currentPage === 1 && (
+          <View style={styles.block}>
+            <View style={styles.gpsInfoCard}>
+              <View style={styles.gpsInfoRow}>
+                <Ionicons name="location" size={16} color={picked ? '#059669' : '#6B7280'} />
+                <Text style={styles.gpsInfoLabel}>當前GPS位置</Text>
+            </View>
+              {picked ? (
+                <Text style={styles.gpsInfoCoord}>{formatCoord(picked)}</Text>
+              ) : (
+                <View style={styles.gpsWarningRow}>
+                  <Text style={styles.gpsWarningText}>未獲取GPS訊息</Text>
+                <Pressable
+                    style={styles.gpsSettingBtn}
+                    onPress={() => void openSettings()}
+                  >
+                    <Ionicons name="settings" size={14} color="#111827" />
+                    <Text style={styles.gpsSettingText}>設定GPS</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* 第2頁：降水工作階段 */}
         {currentPage === 2 && selectedPondUuid ? (
@@ -1680,7 +1703,15 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                 </Text>
               </View>
             </View>
-            
+
+            {/* GPS 定位提示 */}
+            <View style={styles.gpsReminderBox}>
+              <Ionicons name="information-circle" size={14} color="#2563EB" />
+              <Text style={styles.gpsReminderText}>
+                請確保已開啟定位服務及允許存取權限，否則無法獲取相片位置資料
+              </Text>
+            </View>
+
             {/* 相片網格（3列，最多6張） */}
             <View style={styles.photoGridContainer}>
               <View style={styles.photoGridThreeColumn}>
@@ -1990,8 +2021,14 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
             </View>
             <Text style={styles.uploadPercent}>{uploadProgress.percent}%</Text>
             <Text style={styles.uploadHint}>請勿關閉 App</Text>
-            <Pressable style={styles.cancelUploadButton} onPress={handleCancelUpload}>
-              <Text style={styles.cancelUploadText}>取消上載</Text>
+            <Pressable
+              style={[styles.cancelUploadButton, isCancelling && styles.disabled]}
+              onPress={handleCancelUpload}
+              disabled={isCancelling}
+            >
+              <Text style={styles.cancelUploadText}>
+                {isCancelling ? '取消中...' : '取消上載'}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -2093,12 +2130,18 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
             {/* 底部控制欄 */}
             <SafeAreaView style={styles.previewBottomBar}>
               <View style={styles.previewControls}>
-                {/* 取消/重選按鈕 */}
-                <Pressable style={styles.previewCancelButton} onPress={handleGalleryCancel}>
-                  <Ionicons name="refresh" size={24} color="#FFFFFF" />
-                  <Text style={styles.previewCancelText}>重選</Text>
+                {/* 取消按鈕 */}
+                <Pressable style={styles.previewActionBtn} onPress={handleGalleryCancel}>
+                  <Ionicons name="close" size={20} color="#FFFFFF" />
+                  <Text style={styles.previewActionText}>取消</Text>
                 </Pressable>
-                
+
+                {/* 重選按鈕 */}
+                <Pressable style={styles.previewActionBtn} onPress={handleGalleryCancel}>
+                  <Ionicons name="refresh" size={22} color="#FFFFFF" />
+                  <Text style={styles.previewActionText}>重選</Text>
+                </Pressable>
+
                 {/* 確定按鈕 */}
                 <Pressable style={styles.previewConfirmButton} onPress={handleGalleryConfirm}>
                   <Ionicons name="checkmark" size={28} color="#FFFFFF" />
@@ -2152,7 +2195,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     color: '#DC2626',
-    marginTop: 0,
+    marginTop: 10,
   },
 
   // 標題區域
@@ -2173,7 +2216,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 30,
+    marginTop: 10,
     zIndex: 1,
   },
   titleContainer: {
@@ -2468,6 +2511,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#374151',
+  },
+  gpsReminderBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+    gap: 6,
+  },
+  gpsReminderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1E40AF',
+    flex: 1,
+    lineHeight: 17,
   },
   gpsInfoCoord: {
     fontSize: 14,
@@ -3084,13 +3144,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 40,
   },
-  previewCancelButton: {
+  previewActionBtn: {
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
   },
-  previewCancelText: {
+  previewActionText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     marginTop: 4,
   },

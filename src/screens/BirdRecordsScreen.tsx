@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -40,6 +40,7 @@ type PeriodStatus = {
 
 export function BirdRecordsScreen({ route }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const { userPonds, signOut, autoReSignIn } = useAuth();
 
   const [mode, setMode] = useState<AppMode>('bird');
@@ -108,7 +109,7 @@ export function BirdRecordsScreen({ route }: Props) {
     [userPonds, selectedPondId]
   );
 
-  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : insets.top;
 
   const viewPeriodSubmissions = (periodId: string) => {
     if (mode === 'fish') {
@@ -129,7 +130,7 @@ export function BirdRecordsScreen({ route }: Props) {
       <StatusBar barStyle="light-content" backgroundColor="rgba(0, 153, 153)" />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 2 }]}>
         <Pressable
           onPress={() => {
             if (navigation.canGoBack()) {
@@ -319,7 +320,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 30,
+    marginTop: 10,
     zIndex: 1,
   },
   titleContainer: {

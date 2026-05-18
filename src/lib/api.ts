@@ -172,7 +172,7 @@ export async function restFetch<T>(
  */
 export async function functionsFetch<T>(
   path: string,
-  options?: { method?: string; body?: unknown; headers?: Record<string, string> },
+  options?: { method?: string; body?: unknown; headers?: Record<string, string>; signal?: AbortSignal },
   retryCount = 0
 ): Promise<T> {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -205,6 +205,7 @@ export async function functionsFetch<T>(
     method: options?.method || 'POST',
     headers,
     body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
+    signal: options?.signal,
   });
 
   // 處理 401 錯誤
@@ -254,7 +255,8 @@ export interface SignedUploadUrlResponse {
 export async function getSignedUploadUrl(
   ownerId: string,
   filename: string,
-  type: 'pond' | 'bird' = 'pond'
+  type: 'pond' | 'bird' = 'pond',
+  signal?: AbortSignal,
 ): Promise<SignedUploadUrlResponse> {
   try {
     const result = await functionsFetch<SignedUploadUrlResponse>('/get-upload-url', {
@@ -264,6 +266,7 @@ export async function getSignedUploadUrl(
         filename,
         type,
       },
+      signal,
     });
     return result;
   } catch (error) {
@@ -282,7 +285,8 @@ export async function uploadFileWithSignedUrl(
   signedUrl: string,
   fileUri: string,
   contentType: string = 'image/jpeg',
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // 讀取文件
@@ -313,6 +317,7 @@ export async function uploadFileWithSignedUrl(
         'Content-Type': contentType,
       },
       body: array.buffer,
+      signal,
     });
 
     if (response.ok) {

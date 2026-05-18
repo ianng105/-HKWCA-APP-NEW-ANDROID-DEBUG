@@ -27,27 +27,37 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [zoom, setZoom] = useState(0);
-  const [minZoom, setMinZoom] = useState(0);
-  const [maxZoom, setMaxZoom] = useState(1);
+  const zoomRangeRef = useRef({ min: 0, max: 1 });
+
+  const ZOOM_PRESETS = [1, 2, 4, 6, 8];
+
+  const zoomTargetForPreset = (preset: number) => {
+    const { min, max } = zoomRangeRef.current;
+    return ((preset - 1) / 7) * (max - min);
+  };
 
   const canAddMore = photos.length < maxPhotos;
   // 啟用預覽模式（拍照後顯示確定/重拍按鈕）
   const isSinglePhotoMode = enablePreview;
 
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.1, maxZoom));
+    setZoom((prev) => {
+      const { max } = zoomRangeRef.current;
+      return Math.min(prev + 0.1, max);
+    });
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.1, minZoom));
+    setZoom((prev) => {
+      const { min } = zoomRangeRef.current;
+      return Math.max(prev - 0.1, min);
+    });
   };
 
-  const ZOOM_PRESETS = [1, 2, 4, 6, 8];
   const handleZoomPreset = (preset: number) => {
-    // Map 1x, 2x, 4x, 6x, 8x linearly across the zoom range
-    const ratio = preset / 8;
-    const target = minZoom + ratio * (maxZoom - minZoom);
-    setZoom(Math.min(Math.max(target, minZoom), maxZoom));
+    const target = zoomTargetForPreset(preset);
+    const { min, max } = zoomRangeRef.current;
+    setZoom(Math.min(Math.max(target, min), max));
   };
 
   if (!permission) {
@@ -107,8 +117,9 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
     setPreviewUri(null);
   };
 
-  const handleComplete = () => {
-    onComplete();
+  const handleCancel = () => {
+    setPreviewUri(null);
+    onCancel();
   };
 
   // 單張模式：顯示預覽界面
@@ -123,12 +134,18 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
         
         {/* 底部按鈕區域 */}
         <View style={styles.actionBar}>
+          {/* 取消按鈕 */}
+          <Pressable style={styles.actionButtonCancel} onPress={handleCancel}>
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Text style={styles.actionButtonText}>取消</Text>
+          </Pressable>
+
           {/* 重拍按鈕 */}
           <Pressable style={styles.actionButtonLeft} onPress={handleRetake}>
             <Ionicons name="refresh" size={32} color="#FFFFFF" />
             <Text style={styles.actionButtonText}>重新拍</Text>
           </Pressable>
-          
+
           {/* 確定按鈕 */}
           <Pressable style={styles.actionButtonRight} onPress={handleConfirm}>
             <Ionicons name="checkmark" size={36} color="#FFFFFF" />
@@ -151,6 +168,7 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
         style={styles.camera}
         facing={facing}
         zoom={zoom}
+        onCameraReady={() => {}}
       >
         {/* 頂部控制欄 */}
         <View style={styles.topBar}>
@@ -180,13 +198,13 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
                   key={preset}
                   style={[
                     styles.zoomPresetButton,
-                    Math.abs(zoom - (preset - 1)) < 0.05 && styles.zoomPresetButtonActive,
+                    Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetButtonActive,
                   ]}
                   onPress={() => handleZoomPreset(preset)}
                 >
                   <Text style={[
                     styles.zoomPresetText,
-                    Math.abs(zoom - (preset - 1)) < 0.05 && styles.zoomPresetTextActive,
+                    Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetTextActive,
                   ]}>
                     {preset}x
                   </Text>
@@ -534,17 +552,26 @@ const styles = StyleSheet.create({
   actionBar: {
     position: 'absolute',
     bottom: 60,
-    left: 20,
-    right: 20,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 999,
   },
+  actionButtonCancel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    gap: 4,
+  },
   actionButtonLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 25,

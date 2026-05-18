@@ -221,11 +221,11 @@ export function BirdGalleryScreen({ route }: Props) {
     );
   };
 
-  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : insets.top;
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
         <Pressable 
           onPress={() => {
             if (navigation.canGoBack()) {
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 30,
+    marginTop: 10,
     zIndex: 1,
   },
   titleContainer: {

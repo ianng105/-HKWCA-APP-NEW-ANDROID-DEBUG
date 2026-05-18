@@ -12,7 +12,7 @@ export function FixedTabBar() {
   const insets = useSafeAreaInsets();
 
   const tabs = [
-    { name: 'Home', label: '首頁', icon: 'home', iconOutline: 'home-outline' },
+    { name: 'Home', label: '主頁', icon: 'home', iconOutline: 'home-outline' },
     { name: 'Gallery', label: '相簿', icon: 'images', iconOutline: 'images-outline' },
     { name: 'Submit', label: '提交', icon: 'camera', iconOutline: 'camera-outline' },
     { name: 'Records', label: '我的記錄', icon: 'document-text', iconOutline: 'document-text-outline' },
