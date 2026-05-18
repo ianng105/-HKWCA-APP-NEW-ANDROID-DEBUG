@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,7 +12,8 @@ type Props = BottomTabScreenProps<MainTabParamList, 'Submit'>;
 
 export function SubmitScreen({ route }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const insets = useSafeAreaInsets();
+  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : insets.top;
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>

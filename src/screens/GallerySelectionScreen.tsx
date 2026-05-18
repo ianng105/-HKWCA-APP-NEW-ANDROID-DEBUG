@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, Pressable, StatusBar, StyleSheet, Text, View, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,8 +13,8 @@ type Props = BottomTabScreenProps<MainTabParamList, 'Gallery'>;
 
 export function GallerySelectionScreen({ route }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
-  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const insets = useSafeAreaInsets();
+  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : insets.top;
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
@@ -90,23 +90,26 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#065F46',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 48,
+    position: 'absolute',
+    top: 25,
     width: '100%',
   },
   iconsContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 48,
-    marginTop: 20,
+    marginTop: -50,
   },
   iconButton: {
     alignItems: 'center',
     gap: 3,
+    padding: 12,
   },
   iconLabel: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#065F46',
+    color: 'rgba(0, 153, 153, 1)',
     marginTop: 3,
   },
 });

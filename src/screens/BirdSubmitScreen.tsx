@@ -1212,7 +1212,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
         {/* 頂部標題 */}
-        <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
+        <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
           <Text style={styles.title}>提交相片</Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -1254,9 +1254,9 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       {/* 頂部標題 */}
-      <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
         <Pressable 
           onPress={() => {
             if (currentPage === 2) {
@@ -2216,7 +2216,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 10,
+    marginTop: 40,
     zIndex: 1,
   },
   titleContainer: {

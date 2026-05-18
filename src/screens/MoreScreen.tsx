@@ -84,7 +84,7 @@ export function MoreScreen() {
   };
 
   const statusBarHeight =
-    Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
+    Platform.OS === "android" ? StatusBar.currentHeight || 0 : insets.top;
 
   return (
     <ScrollView
@@ -92,18 +92,6 @@ export function MoreScreen() {
       contentContainerStyle={{ paddingBottom: 24, paddingTop: 0 }}
     >
       <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
-        <Pressable
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate("Main", { screen: "Home" });
-            }
-          }}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </Pressable>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>更多</Text>
         </View>
@@ -374,7 +362,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 24,
     height: 24,
-    marginTop: 10,
+    marginTop: 40,
     zIndex: 1,
   },
   titleContainer: {

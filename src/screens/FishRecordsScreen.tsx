@@ -131,7 +131,7 @@ export function FishRecordsScreen({ route }: Props) {
       <StatusBar barStyle="light-content" backgroundColor="rgba(0, 153, 153)" />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: statusBarHeight + 2 }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
         <Pressable
           onPress={() => {
             if (navigation.canGoBack()) {
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 10,
+    marginTop: 40,
     zIndex: 1,
   },
   titleContainer: {

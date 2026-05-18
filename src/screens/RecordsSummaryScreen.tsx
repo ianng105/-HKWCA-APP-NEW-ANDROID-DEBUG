@@ -130,7 +130,7 @@ export function RecordsSummaryScreen({ route }: Props) {
       <StatusBar barStyle="light-content" backgroundColor="rgba(0, 153, 153)" />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: statusBarHeight + 2 }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>我的記錄</Text>
         </View>

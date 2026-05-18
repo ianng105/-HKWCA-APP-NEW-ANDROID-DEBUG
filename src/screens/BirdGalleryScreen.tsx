@@ -225,7 +225,7 @@ export function BirdGalleryScreen({ route }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
         <Pressable 
           onPress={() => {
             if (navigation.canGoBack()) {
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 10,
+    marginTop: 40,
     zIndex: 1,
   },
   titleContainer: {
