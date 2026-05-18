@@ -24,7 +24,7 @@
 		67FFC66839109107DFD5821B /* Pods-HKWCAAPP.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HKWCAAPP.debug.xcconfig"; path = "Target Support Files/Pods-HKWCAAPP/Pods-HKWCAAPP.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = HKWCAAPP/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		CF9D368CADBE02C35C4D63FC /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = HKWCAAPP/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		CF9D368CADBE02C35C4D63FC /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = HKWCAAPP/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		DFBC57D2892358B679459954 /* Pods-HKWCAAPP.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HKWCAAPP.release.xcconfig"; path = "Target Support Files/Pods-HKWCAAPP/Pods-HKWCAAPP.release.xcconfig"; sourceTree = "<group>"; };
 		ECA8A2C24E34E65565395653 /* libPods-HKWCAAPP.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-HKWCAAPP.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -103,7 +103,6 @@
 				67FFC66839109107DFD5821B /* Pods-HKWCAAPP.debug.xcconfig */,
 				DFBC57D2892358B679459954 /* Pods-HKWCAAPP.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -349,6 +348,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = HKWCAAPP/HKWCAAPP.entitlements;
 				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = KV8E2PJABN;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -385,6 +385,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = HKWCAAPP/HKWCAAPP.entitlements;
 				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = KV8E2PJABN;
 				INFOPLIST_FILE = HKWCAAPP/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
