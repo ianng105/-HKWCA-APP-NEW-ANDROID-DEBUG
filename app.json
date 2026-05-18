@@ -18,7 +18,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hkwca.app",
-      "buildNumber": "5",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "用於在提交照片時記錄位置（GPS）。",
         "NSPhotoLibraryUsageDescription": "允許存取相簿以選擇照片上傳。",
