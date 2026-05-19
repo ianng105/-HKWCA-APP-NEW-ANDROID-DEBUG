@@ -171,7 +171,7 @@ function MainTabs() {
           title: '主頁'
         }} 
       />
-      <Tab.Screen name="Gallery" component={GallerySelectionScreen} options={{ title: '相簿' }} listeners={{ tabPress: requireLogin }} />
+      <Tab.Screen name="Gallery" component={GallerySelectionScreen} options={{ title: '相片庫' }} listeners={{ tabPress: requireLogin }} />
       <Tab.Screen name="Submit" component={SubmitScreen} options={{ title: '提交' }} listeners={{ tabPress: requireLogin }} />
       <Tab.Screen name="Records" component={RecordsSummaryScreen} options={{ title: '我的記錄' }} listeners={{ tabPress: requireLogin }} />
       <Tab.Screen name="More" component={MoreScreen} options={{ title: '更多' }} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StatusBar, StyleSheet, Text, View, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -136,6 +136,7 @@ export function GalleryScreen({ route }: Props) {
     ]);
   };
 
+  const insets = useSafeAreaInsets();
   const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
   return (
@@ -221,7 +222,8 @@ export function GalleryScreen({ route }: Props) {
 
       {/* 魚塘篩選 */}
       <Modal visible={pondModalVisible} animationType="slide" onRequestClose={() => setPondModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇魚塘</Text>
             <Pressable onPress={() => setPondModalVisible(false)}>
@@ -244,18 +246,19 @@ export function GalleryScreen({ route }: Props) {
                   }}
                 >
                   <Text style={[styles.modalItemTitle, active && styles.modalItemTitleActive]}>
-                    {item.id === 'all' ? '所有魚塘' : `${item.pond_id} · ${item.name}`}
+                    {item.id === 'all' ? '所有魚塘' : item.pond_id}
                   </Text>
                 </Pressable>
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* 期別篩選 */}
       <Modal visible={periodModalVisible} animationType="slide" onRequestClose={() => setPeriodModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇期別</Text>
             <Pressable onPress={() => setPeriodModalVisible(false)}>
@@ -283,7 +286,7 @@ export function GalleryScreen({ route }: Props) {
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );

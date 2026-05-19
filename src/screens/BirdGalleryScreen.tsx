@@ -221,11 +221,10 @@ export function BirdGalleryScreen({ route }: Props) {
     );
   };
 
-  const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : insets.top;
-
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
+    <View style={{ flex: 1, backgroundColor: 'rgba(0, 153, 153, 1)' }}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={[styles.header, { paddingTop: 16 }]}>
         <Pressable 
           onPress={() => {
             if (navigation.canGoBack()) {
@@ -234,7 +233,7 @@ export function BirdGalleryScreen({ route }: Props) {
               navigation.navigate('Main', { screen: 'Gallery' });
             }
           }} 
-          style={styles.backButton}
+          style={[styles.backButton, { marginTop: 16 }]}
         >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </Pressable>
@@ -243,6 +242,7 @@ export function BirdGalleryScreen({ route }: Props) {
         </View>
       </View>
 
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* Toggle 分頁 - 切換魚塘/雀鳥相片庫 */}
       <View style={styles.toggleContainer}>
         <Pressable 
@@ -327,9 +327,11 @@ export function BirdGalleryScreen({ route }: Props) {
         />
       )}
 
+      </View>
       {/* 魚塘篩選 */}
       <Modal visible={pondModalVisible} animationType="slide" onRequestClose={() => setPondModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇魚塘</Text>
             <Pressable onPress={() => setPondModalVisible(false)}>
@@ -352,18 +354,19 @@ export function BirdGalleryScreen({ route }: Props) {
                   }}
                 >
                   <Text style={[styles.modalItemTitle, active && styles.modalItemTitleActive]}>
-                    {item.id === 'all' ? '所有魚塘' : `${item.pond_id} · ${item.name}`}
+                    {item.id === 'all' ? '所有魚塘' : item.pond_id}
                   </Text>
                 </Pressable>
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* 降水階段篩選 */}
       <Modal visible={periodModalVisible} animationType="slide" onRequestClose={() => setPeriodModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇降水階段</Text>
             <Pressable onPress={() => setPeriodModalVisible(false)}>
@@ -390,12 +393,13 @@ export function BirdGalleryScreen({ route }: Props) {
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* 日期篩選 */}
       <Modal visible={dateModalVisible} animationType="slide" onRequestClose={() => setDateModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇日期範圍</Text>
             <Pressable onPress={() => setDateModalVisible(false)}>
@@ -520,10 +524,11 @@ export function BirdGalleryScreen({ route }: Props) {
               </Pressable>
             </View>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
       <FixedTabBar />
     </SafeAreaView>
+    </View>
   );
 }
 
@@ -547,7 +552,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 40,
     zIndex: 1,
   },
   titleContainer: {

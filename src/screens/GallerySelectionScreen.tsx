@@ -20,12 +20,12 @@ export function GallerySelectionScreen({ route }: Props) {
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <View style={[styles.header, { paddingTop: statusBarHeight + 16 }]}>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>相簿</Text>
+          <Text style={styles.title}>相片庫</Text>
         </View>
       </View>
       
       <View style={styles.content}>
-        <Text style={styles.subtitle}>請選擇要查看的相簿類別</Text>
+        <Text style={styles.subtitle}>請選擇要查看的相片庫類別</Text>
         
         <View style={styles.iconsContainer}>
           <Pressable 

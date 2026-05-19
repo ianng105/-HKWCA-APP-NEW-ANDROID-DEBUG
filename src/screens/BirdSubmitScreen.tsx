@@ -470,7 +470,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
 
       if (isIOS) {
         // iOS: 使用 ImagePicker（更穩定）
-        console.log('📂 iOS: 檢查相簿權限...');
+        console.log('📂 iOS: 檢查相片庫權限...');
         
         // 先檢查當前權限狀態
         const { status: existingStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -487,8 +487,8 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         
         if (finalStatus !== 'granted') {
           Alert.alert(
-            '需要相簿權限',
-            '請在設定中允許存取相簿以選擇照片',
+            '需要相片庫權限',
+            '請在設定中允許存取相片庫以選擇照片',
             [
               { text: '取消', style: 'cancel' },
               { text: '前往設定', onPress: () => Linking.openSettings() }
@@ -1276,7 +1276,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
               }
             }
           }} 
-          style={styles.backButton}
+          style={[styles.backButton, { marginTop: statusBarHeight + 16 }]}
         >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </Pressable>
@@ -1430,7 +1430,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* 第1頁：下一頁按鈕 */}
+        {/* 第1頁：下一步按鈕 */}
         {currentPage === 1 && selectedPondUuid ? (
           <View style={styles.block}>
             {hasGpsPermission !== true && (
@@ -1673,7 +1673,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
               </Text>
             ) : null}
 
-            {/* 第2頁：下一頁按鈕（長期顯示，未選擇時禁用） */}
+            {/* 第2頁：下一步按鈕（長期顯示，未選擇時禁用） */}
             <Pressable 
               style={[
                 styles.nextPageBtn, 
@@ -1683,7 +1683,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
               onPress={() => setCurrentPage(3)}
               disabled={!selectedPeriod}
             >
-              <Text style={[styles.nextPageText, !selectedPeriod && { opacity: 0.5 }]}>下一頁</Text>
+              <Text style={[styles.nextPageText, !selectedPeriod && { opacity: 0.5 }]}>下一步</Text>
               <Ionicons name="arrow-forward" size={20} color={selectedPeriod ? "#111827" : "#9CA3AF"} />
             </Pressable>
           </View>
@@ -1786,7 +1786,8 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
 
       {/* 魚塘選擇 modal */}
       <Modal visible={pondModalVisible} animationType="slide" onRequestClose={() => setPondModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇魚塘</Text>
             <Pressable onPress={() => setPondModalVisible(false)}>
@@ -1906,12 +1907,13 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* 期別選擇 modal */}
       <Modal visible={periodModalVisible} animationType="slide" onRequestClose={() => setPeriodModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇期別</Text>
             <Pressable onPress={() => setPeriodModalVisible(false)}>
@@ -1944,7 +1946,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* 免責聲明 */}
@@ -2072,7 +2074,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                 <View style={[styles.photoSourceOptionIcon, { backgroundColor: '#10B981' }]}>
                   <Ionicons name="images" size={28} color="#FFFFFF" />
                 </View>
-                <Text style={styles.photoSourceOptionText}>從相簿選擇</Text>
+                <Text style={styles.photoSourceOptionText}>從相片庫選擇</Text>
               </Pressable>
             </View>
 
@@ -2216,7 +2218,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
-    marginTop: 40,
     zIndex: 1,
   },
   titleContainer: {

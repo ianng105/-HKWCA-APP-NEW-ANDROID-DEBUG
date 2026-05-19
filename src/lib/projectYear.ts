@@ -7,11 +7,31 @@
  * - 第三期：2027年2月至2028年1月
  */
 
-const PHASE_INFO: Record<number, { label: string; yearStart: number; yearEnd: number }> = {
+export const PHASE_INFO: Record<number, { label: string; yearStart: number; yearEnd: number }> = {
   1: { label: '第一期', yearStart: 2025, yearEnd: 2026 },
   2: { label: '第二期', yearStart: 2026, yearEnd: 2027 },
   3: { label: '第三期', yearStart: 2027, yearEnd: 2028 },
 };
+
+export type PhaseOption = { phase: number; label: string; startIso: string; endIso: string };
+
+export function getPhaseOptions(): PhaseOption[] {
+  return Object.entries(PHASE_INFO).map(([phase, info]) => ({
+    phase: Number(phase),
+    label: `${info.label}（${info.yearStart}年3月至${info.yearEnd}年2月）`,
+    startIso: `${info.yearStart}-03-01T00:00:00`,
+    endIso: `${info.yearEnd}-02-28T23:59:59`,
+  }));
+}
+
+export function getPhaseDateRange(phase: number): { startIso: string; endIso: string } | null {
+  const info = PHASE_INFO[phase];
+  if (!info) return null;
+  return {
+    startIso: `${info.yearStart}-03-01T00:00:00`,
+    endIso: `${info.yearEnd}-02-28T23:59:59`,
+  };
+}
 
 // 魚塘階段選項（降水工作流程）
 export type PeriodOption = { id: string; label: string };

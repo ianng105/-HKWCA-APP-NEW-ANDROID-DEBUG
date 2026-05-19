@@ -429,8 +429,8 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
           </View>
         )}
       </View>
-      <FixedTabBar />
     </ScrollView>
+      <FixedTabBar />
     </View>
   );
 }

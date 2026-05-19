@@ -85,7 +85,7 @@ export async function fetchSubmissions(options: {
   // 魚塘相片使用 submissions 表
   // category 可能是 '魚塘相片', '魚塘', 或 'pond'，使用 OR 條件
   const categoryFilter = category === '魚塘相片'
-    ? `or=(category.eq.魚塘相片,category.eq.魚塘,category.eq.pond)`
+    ? `or=${encodeURIComponent('(category.eq.魚塘相片,category.eq.魚塘,category.eq.pond)')}`
     : `category=eq.${encodeURIComponent(category)}`;
 
   let q = `/submissions?select=*,ponds(name,pond_id),owners(name,owner_id)&is_deleted=eq.false&${categoryFilter}&order=submission_timestamp.desc&limit=${limit}`;

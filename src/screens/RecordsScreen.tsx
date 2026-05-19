@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StatusBar, StyleSheet, Text, View, Platform, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -44,8 +44,10 @@ function startIsoFromPreset(preset: DatePreset) {
   if (preset === 'all') return undefined;
   const d = new Date();
   d.setDate(d.getDate() - (preset === '7d' ? 7 : 30));
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}T00:00:00`;
 }
 
 function fmtDate(iso: string) {
@@ -95,7 +97,8 @@ export function RecordsScreen({ route }: Props) {
         setItems(Array.from(map.values()));
       } catch (e: unknown) {
         await handleAuthError(e, autoReSignIn, signOut, async () => {
-          const data = await fetchSubmissions({ category, pondFilter, periodFilter, datePreset });
+          const startIso = startIsoFromPreset(datePreset);
+          const data = await fetchSubmissions({ category, pondFilter, periodFilter, startIso });
           
           const map = new Map<string, any>();
           for (const s of data || []) {
@@ -137,6 +140,7 @@ export function RecordsScreen({ route }: Props) {
     });
   };
 
+  const insets = useSafeAreaInsets();
   const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
   return (
@@ -236,7 +240,8 @@ export function RecordsScreen({ route }: Props) {
 
       {/* 魚塘篩選 */}
       <Modal visible={pondModalVisible} animationType="slide" onRequestClose={() => setPondModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇魚塘</Text>
             <Pressable onPress={() => setPondModalVisible(false)}>
@@ -259,18 +264,19 @@ export function RecordsScreen({ route }: Props) {
                   }}
                 >
                   <Text style={[styles.modalItemTitle, active && styles.modalItemTitleActive]}>
-                    {item.id === 'all' ? '所有魚塘' : `${item.pond_id} · ${item.name}`}
+                    {item.id === 'all' ? '所有魚塘' : item.pond_id}
                   </Text>
                 </Pressable>
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* 期別篩選 */}
       <Modal visible={periodModalVisible} animationType="slide" onRequestClose={() => setPeriodModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>選擇期別</Text>
             <Pressable onPress={() => setPeriodModalVisible(false)}>
@@ -298,7 +304,7 @@ export function RecordsScreen({ route }: Props) {
               );
             }}
           />
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
