@@ -1789,16 +1789,19 @@ export function FishSubmitScreen({ navigation, route }: Props) {
               </Text>
             ) : null}
 
-                {/* 第2頁：下一步按鈕（透明） */}
-            {selectedPeriod && (
-              <Pressable 
-                style={[styles.nextPageBtn, { marginTop: 20 }]}
-                onPress={() => setCurrentPage(3)}
-              >
-                <Text style={styles.nextPageText}>下一步</Text>
-                <Ionicons name="arrow-forward" size={20} color="#111827" />
-              </Pressable>
-            )}
+                {/* 第2頁：下一步按鈕 */}
+            <Pressable
+              style={[
+                styles.nextPageBtn,
+                { marginTop: 20 },
+                !selectedPeriod && { opacity: 0.4 },
+              ]}
+              onPress={() => setCurrentPage(3)}
+              disabled={!selectedPeriod}
+            >
+              <Text style={[styles.nextPageText, !selectedPeriod && { color: '#9CA3AF' }]}>下一步</Text>
+              <Ionicons name="arrow-forward" size={20} color={selectedPeriod ? '#111827' : '#9CA3AF'} />
+            </Pressable>
           </View>
         ) : null}
 
@@ -2482,7 +2485,7 @@ const styles = StyleSheet.create({
     minHeight: 110,
   },
   flowButtonSelected: {
-    borderColor: '#34D399',
+    borderColor: '#EF4444',
   },
   flowButtonSubmitted: {
     opacity: 0.6,
@@ -2549,7 +2552,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   periodButtonSelected: {
-    borderColor: '#34D399',
+    borderColor: '#EF4444',
     // backgroundColor 由動態設置控制
   },
   periodButtonSubmitted: {

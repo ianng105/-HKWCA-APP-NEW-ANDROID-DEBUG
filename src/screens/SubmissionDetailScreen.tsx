@@ -37,7 +37,7 @@ function fmtDate(iso: string) {
   const dd = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mi = String(d.getMinutes()).padStart(2, '0');
-  return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
 // 格式化 EXIF 時間
@@ -88,7 +88,7 @@ function fmtExifDate(exifDatetime: string | null | undefined): string {
     const hh = isUtc ? String(d.getUTCHours()) : String(d.getHours());
     const mi = isUtc ? String(d.getUTCMinutes()) : String(d.getMinutes());
 
-    return `${yyyy.padStart(4, '0')}/${mm.padStart(2, '0')}/${dd.padStart(2, '0')} ${hh.padStart(2, '0')}:${mi.padStart(2, '0')}`;
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')} ${hh.padStart(2, '0')}:${mi.padStart(2, '0')}`;
   } catch (error) {
     console.error('fmtExifDate error:', error);
     return exifDatetime || '';
@@ -332,7 +332,7 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
       <View style={styles.card}>
         <View style={styles.rowBetween}>
           <Text style={styles.cardTitle}>提交詳情</Text>
-          <StatusBadge status={first.payment_status} />
+          <StatusBadge status={first.payment_status} variant={category === '雀鳥相片' ? 'bird' : 'fish'} />
         </View>
 
         <View style={styles.metaRow}>
@@ -356,21 +356,21 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
           <Text style={styles.metaVal}>{fmtDate(first.submission_timestamp)}</Text>
         </View>
 
+        {first?.exif_datetime ? (
+          <View style={styles.metaRow}>
+            <Text style={styles.metaKey}>拍攝時間</Text>
+            <Text style={styles.metaVal}>{fmtExifDate(first.exif_datetime)}</Text>
+          </View>
+        ) : null}
+
         {/* 照片GPS - 照片EXIF內嵌位置 */}
         <View style={styles.metaRow}>
           <Text style={styles.metaKey}>拍攝位置</Text>
-          <View style={{ maxWidth: '70%', alignItems: 'flex-end' }}>
-            <Text style={styles.metaVal}>
-              {first?.exif_latitude && first?.exif_longitude
-                ? `${Number(first.exif_latitude).toFixed(6)}, ${Number(first.exif_longitude).toFixed(6)}`
-                : '無GPS資訊'}
-            </Text>
-            <Text style={[styles.metaVal, { fontSize: 12, color: '#9CA3AF', marginTop: 2 }]}>
-              {first?.exif_latitude && first?.exif_longitude
-                ? (first?.exif_datetime ? fmtExifDate(first.exif_datetime) : 'EXIF無時間')
-                : ''}
-            </Text>
-          </View>
+          <Text style={styles.metaVal}>
+            {first?.exif_latitude && first?.exif_longitude
+              ? `${Number(first.exif_latitude).toFixed(6)}, ${Number(first.exif_longitude).toFixed(6)}`
+              : '無GPS資訊'}
+          </Text>
         </View>
 
         {/* 地圖顯示 - 只顯示照片EXIF位置 */}

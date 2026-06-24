@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Animated } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, Animated, Platform, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetwork } from '../contexts/NetworkContext';
 
 export function NetworkIndicator() {
   const { isConnected } = useNetwork();
+  const insets = useSafeAreaInsets();
+  const topOffset = insets.top > 0 ? insets.top : (Platform.OS === 'android' ? StatusBar.currentHeight || 44 : 44);
   const [showModal, setShowModal] = useState(false);
   const [hasShownModal, setHasShownModal] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -44,7 +47,7 @@ export function NetworkIndicator() {
   return (
     <>
       {/* 顶部持续显示的提示条 */}
-      <Animated.View style={[styles.banner, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.banner, { opacity: fadeAnim, top: topOffset }]}>
         <Ionicons name="cloud-offline" size={18} color="#FFFFFF" />
         <Text style={styles.bannerText}>未能連接到網絡，請檢查您的網絡連接</Text>
       </Animated.View>

@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash-icon2.png",
       "resizeMode": "contain",
       "backgroundColor": "#59B8CE"
     },
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hkwca.app",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "用於在提交照片時記錄位置（GPS）。",
         "NSPhotoLibraryUsageDescription": "允許存取相簿以選擇照片上傳。",

@@ -16,12 +16,15 @@ export const PHASE_INFO: Record<number, { label: string; yearStart: number; year
 export type PhaseOption = { phase: number; label: string; startIso: string; endIso: string };
 
 export function getPhaseOptions(): PhaseOption[] {
-  return Object.entries(PHASE_INFO).map(([phase, info]) => ({
-    phase: Number(phase),
-    label: `${info.label}（${info.yearStart}年3月至${info.yearEnd}年2月）`,
-    startIso: `${info.yearStart}-03-01T00:00:00`,
-    endIso: `${info.yearEnd}-02-28T23:59:59`,
-  }));
+  const currentPhase = getCurrentProjectYear();
+  return Object.entries(PHASE_INFO)
+    .filter(([phase]) => Number(phase) <= currentPhase)
+    .map(([phase, info]) => ({
+      phase: Number(phase),
+      label: `${info.label}（${info.yearStart}年3月至${info.yearEnd}年2月）`,
+      startIso: `${info.yearStart}-03-01T00:00:00`,
+      endIso: `${info.yearEnd}-02-28T23:59:59`,
+    }));
 }
 
 export function getPhaseDateRange(phase: number): { startIso: string; endIso: string } | null {
@@ -82,8 +85,7 @@ export function getFishPeriodsWithYearLabel(): PeriodOption[] {
   const currentPhase = getCurrentProjectYear();
   const result: PeriodOption[] = [];
 
-  // 顯示所有階段：1, 2, 3
-  for (let phase = 1; phase <= 3; phase++) {
+  for (let phase = 1; phase <= currentPhase; phase++) {
     const info = PHASE_INFO[phase];
     FISH_PERIODS_CORE.forEach((period) => {
       result.push({
@@ -100,9 +102,10 @@ export function getFishPeriodsWithYearLabel(): PeriodOption[] {
  * 獲取雀鳥階段選項（帶項目年度標籤）
  */
 export function getBirdPeriodsWithYearLabel(): PeriodOption[] {
+  const currentPhase = getCurrentProjectYear();
   const result: PeriodOption[] = [];
 
-  for (let phase = 1; phase <= 3; phase++) {
+  for (let phase = 1; phase <= currentPhase; phase++) {
     const info = PHASE_INFO[phase];
     BIRD_PERIODS_CORE.forEach((period) => {
       result.push({

@@ -57,7 +57,7 @@ export function SplashScreen({ onFinish }: Props) {
         translucent={false}
       />
       <Image
-        source={require('../../assets/App loading page_3 second.jpg')}
+        source={require('../../assets/splash-icon2.png')}
         style={styles.image}
         resizeMode="cover"
       />

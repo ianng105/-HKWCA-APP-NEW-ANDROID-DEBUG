@@ -2354,7 +2354,7 @@ const styles = StyleSheet.create({
     minHeight: 110,
   },
   flowButtonSelected: {
-    borderColor: '#34D399',
+    borderColor: '#EF4444',
   },
   flowButtonSubmitted: {
     opacity: 0.6,
@@ -2388,7 +2388,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   birdPeriodButtonSelected: {
-    borderColor: '#000000',
+    borderColor: '#EF4444',
     borderWidth: 3,
   },
   birdPeriodButtonText: {
@@ -2449,7 +2449,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   periodButtonSelected: {
-    borderColor: '#34D399',
+    borderColor: '#EF4444',
     // backgroundColor 由動態設置控制
   },
   periodButtonSubmitted: {

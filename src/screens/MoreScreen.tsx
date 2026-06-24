@@ -188,6 +188,7 @@ export function MoreScreen() {
       >
         <SafeAreaView
           style={[styles.modalContainer, { paddingTop: insets.top }]}
+          edges={['left', 'right', 'bottom']}
         >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>關於本計劃</Text>
@@ -220,18 +221,22 @@ export function MoreScreen() {
             </Text>
 
             <Text style={styles.aboutSectionTitle}>目標</Text>
-            <Text style={styles.aboutListItem}>
-              • 夥拍養魚戶，於魚塘進行生境管理措施，為水鳥提供覓食和棲息的環境，以增強魚塘生態價值
-            </Text>
-            <Text style={styles.aboutListItem}>
-              • 進行生態及環境調查，提供水鳥及其生境的數據，監測魚塘狀況，以支持可持續生境管理
-            </Text>
-            <Text style={styles.aboutListItem}>
-              • 與養魚戶合作，向公眾宣傳本地魚塘文化及生態價值，促進生態保育與養魚的和諧共存
-            </Text>
-            <Text style={styles.aboutListItem}>
-              • 提升公眾對濕地保育的認識及參與
-            </Text>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>夥拍養魚戶，於魚塘進行生境管理措施，為水鳥提供覓食和棲息的環境，以增強魚塘生態價值</Text>
+            </View>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>進行生態及環境調查，提供水鳥及其生境的數據，監測魚塘狀況，以支持可持續生境管理</Text>
+            </View>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>與養魚戶合作，向公眾宣傳本地魚塘文化及生態價值，促進生態保育與養魚的和諧共存</Text>
+            </View>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>提升公眾對濕地保育的認識及參與</Text>
+            </View>
 
             <Text style={styles.aboutFooter}>
               *計劃由香港濕地保育協會主辧，鄉郊保育辦公室及鄉郊保育資助計劃資助
@@ -261,6 +266,7 @@ export function MoreScreen() {
       >
         <SafeAreaView
           style={[styles.modalContainer, { paddingTop: insets.top }]}
+          edges={['left', 'right', 'bottom']}
         >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>香港濕地保育協會</Text>
@@ -297,26 +303,32 @@ export function MoreScreen() {
             </Text>
 
             <Text style={styles.aboutSectionTitle}>主要工作</Text>
-            <Text style={styles.aboutListItem}>
-              • 透過論壇、工作坊、交流平台等，促進國際和本地濕地保育和管理的經驗交流。
-            </Text>
-            <Text style={styles.aboutListItem}>
-              • 教育項目：涵蓋多元化方向，包括：學習、欣賞、行動、參與和溝通等，促進社區濕地保育。鼓勵公眾參與、滙集社區力量。共同推動保育工作。
-            </Text>
-            <Text style={styles.aboutListItem}>
-              • 建立網絡聯係：透過海外考察和交流，與其他地方的濕地保護區和中心建立聯繫。
-            </Text>
-            <Text style={styles.aboutListItem}>
-              • 倡議本地自然及濕地保護政策和策略。
-            </Text>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>透過論壇、工作坊、交流平台等，促進國際和本地濕地保育和管理的經驗交流。</Text>
+            </View>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>教育項目：涵蓋多元化方向，包括：學習、欣賞、行動、參與和溝通等，促進社區濕地保育。鼓勵公眾參與、滙集社區力量。共同推動保育工作。</Text>
+            </View>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>建立網絡聯係：透過海外考察和交流，與其他地方的濕地保護區和中心建立聯繫。</Text>
+            </View>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>倡議本地自然及濕地保護政策和策略。</Text>
+            </View>
 
             <Text style={styles.aboutSectionTitle}>香港濕地保育協會：</Text>
-            <Text style={styles.aboutListItem}>
-              • 為根據香港《稅務條例》第88條獲免稅繳稅的慈善機構
-            </Text>
-            <Text style={styles.aboutListItem}>
-              • 國際濕地聯盟 (WLI) 成員 (國際濕地網絡 (WLI) 是全球濕地教育中心網絡並由拉姆薩爾公約認可)
-            </Text>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>為根據香港《稅務條例》第88條獲免稅繳稅的慈善機構</Text>
+            </View>
+            <View style={styles.aboutListItem}>
+              <Text style={styles.aboutBullet}>•</Text>
+              <Text style={styles.aboutListItemText}>國際濕地聯盟 (WLI) 成員 (國際濕地網絡 (WLI) 是全球濕地教育中心網絡並由拉姆薩爾公約認可)</Text>
+            </View>
 
             <Text style={styles.aboutSectionTitle}>網頁</Text>
             <Pressable
@@ -503,12 +515,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   aboutListItem: {
-    fontSize: 14,
-    color: "#374151",
-    lineHeight: 22,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginBottom: 8,
-    paddingLeft: 12,
-    textIndent: -12,
+  },
+  aboutBullet: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+    marginRight: 6,
+  },
+  aboutListItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
   },
   aboutFooter: {
     fontSize: 13,

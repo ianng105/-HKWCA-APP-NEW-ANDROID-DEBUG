@@ -29,11 +29,11 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const [zoom, setZoom] = useState(0);
   const zoomRangeRef = useRef({ min: 0, max: 1 });
 
-  const ZOOM_PRESETS = [1, 2, 4, 6, 8];
+  const ZOOM_PRESETS = [0.5, 1, 2, 4, 6, 8];
 
   const zoomTargetForPreset = (preset: number) => {
     const { min, max } = zoomRangeRef.current;
-    return ((preset - 1) / 7) * (max - min);
+    return ((preset - 0.5) / 7.5) * (max - min);
   };
 
   const canAddMore = photos.length < maxPhotos;
@@ -228,10 +228,6 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
               <View style={styles.captureButtonInner} />
             </Pressable>
 
-            {/* 右邊：切換鏡頭 */}
-            <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-              <Ionicons name="camera-reverse" size={28} color="#FFFFFF" />
-            </Pressable>
           </View>
 
           {/* 提示文字 */}

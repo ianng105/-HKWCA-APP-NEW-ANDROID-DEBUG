@@ -201,7 +201,7 @@ export function GalleryScreen({ route }: Props) {
               <View style={styles.cardBody}>
                 <View style={styles.rowBetween}>
                   <Text style={styles.cardTitle}>{item.ponds?.pond_id || '未指定魚塘'}</Text>
-                  <StatusBadge status={item.payment_status} />
+                  <StatusBadge status={item.payment_status} variant={mode === 'bird' ? 'bird' : 'fish'} />
                 </View>
                 <Text style={styles.cardMeta}>{fmtDate(item.submission_timestamp)} · {getPeriodLabel(item.period, periods)}</Text>
 
