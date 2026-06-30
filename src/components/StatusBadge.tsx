@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'paid' | string | null | undefined;
 
 function getStyle(status: PaymentStatus, variant?: 'fish' | 'bird') {
-  if (variant === 'bird') {
+  if (variant === 'bird' || variant === 'fish') {
     switch (status) {
       case 'approved':
       case 'paid':
@@ -15,16 +15,17 @@ function getStyle(status: PaymentStatus, variant?: 'fish' | 'bird') {
         return { bg: '#FEF3C7', fg: '#92400E', label: '審核中' };
     }
   }
+  // legacy: no variant specified
   switch (status) {
     case 'approved':
-      return { bg: '#DCFCE7', fg: '#166534', label: '已批核' };
+      return { bg: '#DCFCE7', fg: '#166534', label: '審核完成' };
     case 'paid':
       return { bg: '#DBEAFE', fg: '#1D4ED8', label: '已撥款' };
     case 'rejected':
-      return { bg: '#FEE2E2', fg: '#991B1B', label: '被拒絕' };
+      return { bg: '#FEF3C7', fg: '#92400E', label: '審核中' };
     case 'pending':
     default:
-      return { bg: '#F3F4F6', fg: '#374151', label: '待審批' };
+      return { bg: '#F3F4F6', fg: '#374151', label: '審核中' };
   }
 }
 

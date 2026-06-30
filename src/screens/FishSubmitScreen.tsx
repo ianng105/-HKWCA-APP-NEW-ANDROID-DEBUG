@@ -27,7 +27,7 @@ import * as Location from 'expo-location';
 import { checkPhotoGPS, quickCheckGPS, getGPSCheckErrorMessage, type GPSCheckResult } from '../utils/exifGpsParser';
 import { extractGPSWithFallback, GPSExtractionResult } from '../lib/exifToolsApi';
 import { extractExifFromPhoto, type ExtractExifResult } from '../lib/exifExtractor';
-import { functionsFetch, getSignedUploadUrl, uploadFileWithSignedUrl } from '../lib/api';
+import { functionsFetch, getSignedUploadUrl, uploadFileToStorage } from '../lib/api';
 
 import { useAuth } from '../contexts/AuthContext';
 import type { AppMode, PickedLocation, RootStackParamList } from '../navigation/AppNavigator';
@@ -94,9 +94,15 @@ function formatCoord(loc?: PickedLocation | null) {
 }
 
 async function fetchSubmittedPeriods(options: { pondUuid: string; category: string }): Promise<string[]> {
-  // TODO: 實現後端 API 調用
-  console.log('fetchSubmittedPeriods:', options);
-  return [];
+  try {
+    const data = await functionsFetch<{ success: boolean; submitted_periods: string[] }>(
+      '/get-submitted-periods',
+      { body: { pond_uuid: options.pondUuid, category: options.category } },
+    );
+    return data.submitted_periods ?? [];
+  } catch {
+    return [];
+  }
 }
 
 function avgCenter(points: Array<{ latitude: number; longitude: number }>) {
@@ -419,7 +425,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
       uri,
       location: currentLocation,
       exifGps: currentLocation ? { latitude: currentLocation.latitude, longitude: currentLocation.longitude } : undefined,
-      exif_datetime: timestamp,  // 拍攝時間 = 當前時間
+      exif_datetime: timestamp,  // 拍攝時間 = 當前時間（相機剛拍，與 EXIF 無異）
       gpsSource: currentLocation ? 'manual' : undefined,
     };
     setPhotos((prev) => [...prev, newPhoto]);
@@ -820,6 +826,11 @@ export function FishSubmitScreen({ navigation, route }: Props) {
     setPondModalVisible(true);
   };
 
+  const handleSelectPeriod = (periodId: string) => {
+    if (submittedPeriods.includes(periodId)) return;
+    setSelectedPeriod(periodId);
+  };
+
   const validateForm = (): boolean => {
     if (!selectedPondUuid) {
       Alert.alert('提示', '請選擇魚塘');
@@ -902,15 +913,12 @@ export function FishSubmitScreen({ navigation, route }: Props) {
         console.log(`📤 上傳照片 URI: ${p.uri?.substring(0, 100)}`);
 
         const filename = `${mode}_${timestamp.replace(/[:.]/g, '-')}_${i + 1}.jpg`;
-
-        // 使用簽名 URL 直接上傳到 Storage（二進制直傳，速度更快）
-        console.log(`📤 [Upload] 使用簽名 URL 上傳...`);
-
         let storagePath: string | undefined;
 
         const signal = abortControllerRef.current?.signal;
 
-        // Step 1: 獲取簽名上傳 URL
+        // Step 1: 獲取上傳 URL（Edge Function 回傳直接 POST URL）
+        console.log(`📋 [Step 1/3] 獲取上傳 URL... (owner: ${user?.owner_id}, file: ${filename})`);
         const urlResult = await getSignedUploadUrl(
           user?.owner_id ?? '',
           filename,
@@ -919,24 +927,24 @@ export function FishSubmitScreen({ navigation, route }: Props) {
         );
 
         if (!urlResult.success || !urlResult.signed_url || !urlResult.storage_path) {
-          throw new Error(urlResult.error || '獲取簽名上傳 URL 失敗');
+          throw new Error(`[步驟1] 獲取上傳 URL 失敗: ${urlResult.error || '未知錯誤'}`);
         }
+        storagePath = urlResult.storage_path;
+        console.log(`✅ [Step 1/3] 上傳 URL 獲取成功`);
 
-        // Step 2: 上傳文件到 Storage
-        const uploadResult = await uploadFileWithSignedUrl(
+        // Step 2: 直接 POST 上傳到 Storage
+        console.log(`📤 [Step 2/3] POST 上傳到 Storage... (${p.uri})`);
+        const uploadResult = await uploadFileToStorage(
           urlResult.signed_url,
           p.uri,
           'image/jpeg',
-          undefined,
           signal,
         );
 
         if (!uploadResult.success) {
-          throw new Error(uploadResult.error || '文件上傳失敗');
+          throw new Error(`[步驟2] 文件上傳失敗: ${uploadResult.error || '未知錯誤'}`);
         }
-
-        storagePath = urlResult.storage_path;
-        console.log(`✅ [Upload] 文件上傳成功，storage_path: ${storagePath}`);
+        console.log(`✅ [Step 2/3] 文件上傳成功`);
 
         console.log('GPS位置:', '上傳位置:', uploadLoc, 'EXIF:', p.exifGps, 'EXIF時間:', p.exif_datetime);
 
@@ -955,7 +963,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
           upload_latitude: uploadLoc?.latitude != null && !isNaN(Number(uploadLoc.latitude)) ? Number(uploadLoc.latitude) : undefined,
           upload_longitude: uploadLoc?.longitude != null && !isNaN(Number(uploadLoc.longitude)) ? Number(uploadLoc.longitude) : undefined,
           // 時間戳
-          photo_taken_at: timestamp,
+          photo_taken_at: p.exif_datetime && new Date(p.exif_datetime).getTime() <= Date.now() ? p.exif_datetime : timestamp,
           submission_timestamp: timestamp,
         };
 
@@ -967,15 +975,17 @@ export function FishSubmitScreen({ navigation, route }: Props) {
         Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
         console.log('提交數據:', JSON.stringify({ ...body, file_base64: '[base64...]', storage_path: body.storage_path }));
 
-        // 調用 Edge Function 提交照片
-        console.log('提交照片到 Edge Function...');
+        // Step 3: 提交記錄到後端
+        console.log(`📝 [Step 3/3] 提交記錄到後端...`);
         await functionsFetch<unknown>('/app-submit-photo', {
           method: 'POST',
           body,
           signal,
+        }).catch((err) => {
+          throw new Error(`[步驟2] 提交記錄失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
         });
 
-        console.log(`第 ${i + 1} 張照片提交成功`);
+        console.log(`✅ [Step 3/3] 第 ${i + 1} 張照片提交成功`);
       }
       
       // 完成時設為 100%
@@ -1036,7 +1046,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
           );
         }
       } else {
-        Alert.alert('提交失敗', '請稍後再試');
+        Alert.alert('提交失敗', errorMsg || '請稍後再試');
       }
     } finally {
       setIsUploading(false);
@@ -1695,7 +1705,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
                     submittedPeriods.includes('before_drawdown') && styles.flowButtonSubmitted,
                     { backgroundColor: submittedPeriods.includes('before_drawdown') ? '#F3F4F6' : '#89C2D9' },
                   ]}
-                  onPress={() => setSelectedPeriod('before_drawdown')}
+                  onPress={() => handleSelectPeriod('before_drawdown')}
                   disabled={submittedPeriods.includes('before_drawdown')}
                 >
                   <Text style={[styles.flowButtonText, submittedPeriods.includes('before_drawdown') && styles.flowButtonTextSubmitted]}>
@@ -1717,7 +1727,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
                       submittedPeriods.includes('after_basic_day1') && styles.flowButtonSubmitted,
                       { backgroundColor: submittedPeriods.includes('after_basic_day1') ? '#F3F4F6' : '#C2F6F4' },
                     ]}
-                    onPress={() => setSelectedPeriod('after_basic_day1')}
+                    onPress={() => handleSelectPeriod('after_basic_day1')}
                     disabled={submittedPeriods.includes('after_basic_day1')}
                   >
                     <Text style={[styles.flowButtonText, submittedPeriods.includes('after_basic_day1') && styles.flowButtonTextSubmitted]}>
@@ -1732,7 +1742,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
                       submittedPeriods.includes('after_basic_day7') && styles.flowButtonSubmitted,
                       { backgroundColor: submittedPeriods.includes('after_basic_day7') ? '#F3F4F6' : '#C2F6F4' },
                     ]}
-                    onPress={() => setSelectedPeriod('after_basic_day7')}
+                    onPress={() => handleSelectPeriod('after_basic_day7')}
                     disabled={submittedPeriods.includes('after_basic_day7')}
                   >
                     <Text style={[styles.flowButtonText, submittedPeriods.includes('after_basic_day7') && styles.flowButtonTextSubmitted]}>
@@ -1753,7 +1763,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
                       submittedPeriods.includes('after_drying_day1') && styles.flowButtonSubmitted,
                       { backgroundColor: submittedPeriods.includes('after_drying_day1') ? '#F3F4F6' : '#9DD4D1' },
                     ]}
-                    onPress={() => setSelectedPeriod('after_drying_day1')}
+                    onPress={() => handleSelectPeriod('after_drying_day1')}
                     disabled={submittedPeriods.includes('after_drying_day1')}
                   >
                     <Text style={[styles.flowButtonText, submittedPeriods.includes('after_drying_day1') && styles.flowButtonTextSubmitted]}>
@@ -1768,7 +1778,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
                       submittedPeriods.includes('after_drying_day7') && styles.flowButtonSubmitted,
                       { backgroundColor: submittedPeriods.includes('after_drying_day7') ? '#F3F4F6' : '#9DD4D1' },
                     ]}
-                    onPress={() => setSelectedPeriod('after_drying_day7')}
+                    onPress={() => handleSelectPeriod('after_drying_day7')}
                     disabled={submittedPeriods.includes('after_drying_day7')}
                   >
                     <Text style={[styles.flowButtonText, submittedPeriods.includes('after_drying_day7') && styles.flowButtonTextSubmitted]}>
@@ -2486,6 +2496,7 @@ const styles = StyleSheet.create({
   },
   flowButtonSelected: {
     borderColor: '#EF4444',
+    borderWidth: 2,
   },
   flowButtonSubmitted: {
     opacity: 0.6,

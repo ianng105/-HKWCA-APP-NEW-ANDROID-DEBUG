@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -19,6 +19,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { WebView } from "react-native-webview";
 
 import { useAuth } from "../contexts/AuthContext";
 import type { RootStackParamList } from "../navigation/AppNavigator";
@@ -31,6 +32,77 @@ const combinedLogo = require('../../assets/CCO_CCFS_combined.png');
 // 香港濕地保育協會圖片
 const aboutHKWCAImage = require('../../assets/About_HKWCA_compressed.jpg');
 const hkwcaLogoNew = require('../../assets/HKWCA_Logo_v2_compressed.png');
+
+function avgCenter(points: Array<{ latitude: number; longitude: number }>) {
+  if (!points.length) return { latitude: 22.495, longitude: 114.03 };
+  const sum = points.reduce(
+    (acc, p) => ({ latitude: acc.latitude + p.latitude, longitude: acc.longitude + p.longitude }),
+    { latitude: 0, longitude: 0 }
+  );
+  return { latitude: sum.latitude / points.length, longitude: sum.longitude / points.length };
+}
+
+function generatePondMapHtml(ponds: Array<{ id: string; pond_id: string; latitude: number; longitude: number }>) {
+  const center = avgCenter(ponds);
+  const markers = ponds.map((p) => {
+    const title = p.pond_id.replace(/'/g, "\\'");
+    return `
+(function(){
+  var m = L.marker([${p.latitude}, ${p.longitude}], {
+    title: '${title}'
+  });
+  m.addTo(map);
+  var labelIcon = L.divIcon({
+    className: 'pond-label',
+    html: '<div class="label-text">${title}</div>',
+    iconSize: [60, 20],
+    iconAnchor: [30, -12]
+  });
+  L.marker([${p.latitude}, ${p.longitude}], { icon: labelIcon }).addTo(map);
+})();`;
+  }).join('\n');
+
+  return `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; }
+  .pond-label { background: transparent; border: none; pointer-events: none; }
+  .label-text { background: rgba(255,255,255,0.9); border-radius: 4px; padding: 1px 5px; font-size: 11px; font-weight: 700; color: #065F46; white-space: nowrap; text-align: center; }
+  .leaflet-control-attribution { display: none !important; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+  var map = L.map('map', {
+    zoomControl: true,
+    touchZoom: true,
+    scrollWheelZoom: false,
+    doubleClickZoom: true,
+    dragging: true,
+    attributionControl: false
+  }).setView([${center.latitude}, ${center.longitude}], 15);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: ''
+  }).addTo(map);
+
+  ${markers}
+
+  setTimeout(function() { map.invalidateSize(); }, 300);
+})();
+</script>
+</body>
+</html>`;
+}
 
 type MenuItem = {
   label: string;
@@ -50,13 +122,13 @@ export function MoreScreen() {
   const menuItems: MenuItem[] = useMemo(
     () => [
       {
-        label: "關於本計劃",
-        onPress: () => setShowAboutModal(true),
-      },
-      {
         label: "教學",
         onPress: () =>
           Alert.alert("提示", "即將推出"),
+      },
+      {
+        label: "關於本計劃",
+        onPress: () => setShowAboutModal(true),
       },
       {
         label: "香港濕地保育協會",
@@ -64,6 +136,18 @@ export function MoreScreen() {
       },
     ],
     [],
+  );
+
+  const pondsWithLocation = useMemo(
+    () => userPonds.filter(
+      (p) => typeof p.latitude === 'number' && typeof p.longitude === 'number'
+    ) as Array<typeof userPonds[number] & { latitude: number; longitude: number }>,
+    [userPonds]
+  );
+
+  const pondMapHtml = useMemo(
+    () => pondsWithLocation.length > 0 ? generatePondMapHtml(pondsWithLocation) : null,
+    [pondsWithLocation]
   );
 
   const onSignOut = async () => {
@@ -121,11 +205,6 @@ export function MoreScreen() {
                 <Text style={styles.kvKey}>用戶名稱</Text>
                 <Text style={styles.kvVal}>{user?.name || "未設定"}</Text>
               </View>
-              <View style={styles.kvRow}>
-                <Text style={styles.kvKey}>項目期數</Text>
-                <Text style={styles.kvVal}>{user?.project_year_label || "未設定"}</Text>
-              </View>
-
               {userPonds.length > 0 ? (
                 <View style={{ marginTop: 10 }}>
                   <Pressable
@@ -141,13 +220,34 @@ export function MoreScreen() {
                   </Pressable>
 
                   {pondsOpen ? (
-                    <View style={styles.pondWrap}>
-                      {userPonds.map((p) => (
-                        <View key={p.id} style={styles.pondChip}>
-                          <Text style={styles.pondChipText}>{p.pond_id}</Text>
+                    <>
+                      <View style={styles.pondWrap}>
+                        {userPonds.map((p) => (
+                          <View key={p.id} style={styles.pondChip}>
+                            <Text style={styles.pondChipText}>{p.pond_id}</Text>
+                          </View>
+                        ))}
+                      </View>
+
+                      {pondMapHtml ? (
+                        <View style={styles.pondMapSection}>
+                          <Text style={styles.pondMapLabel}>魚塘位置</Text>
+                          <View style={styles.pondMapWrap}>
+                            <WebView
+                              originWhitelist={['*']}
+                              source={{ html: pondMapHtml }}
+                              javaScriptEnabled
+                              domStorageEnabled
+                              scrollEnabled={false}
+                              showsHorizontalScrollIndicator={false}
+                              showsVerticalScrollIndicator={false}
+                              bounces={false}
+                              style={styles.pondMap}
+                            />
+                          </View>
                         </View>
-                      ))}
-                    </View>
+                      ) : null}
+                    </>
                   ) : null}
                 </View>
               ) : null}
@@ -215,7 +315,7 @@ export function MoreScreen() {
               resizeMode="cover"
             />
 
-            <Text style={styles.aboutSectionTitle}>計劃簡介。</Text>
+            <Text style={styles.aboutSectionTitle}>計劃簡介</Text>
             <Text style={styles.aboutText}>
               計劃融合積極魚塘生境管理、科學監測與研究、公眾參與，夥拍后海灣米埔、大生圍及甩洲養魚戶，共同保育本地魚塘生態和文化，推廣本地漁業。
             </Text>
@@ -439,6 +539,26 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   pondChipText: { color: "#065F46", fontWeight: "900", fontSize: 12 },
+
+  pondMapSection: {
+    marginTop: 12,
+  },
+  pondMapLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  pondMapWrap: {
+    height: 220,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  pondMap: {
+    flex: 1,
+  },
 
   menuItem: {
     borderWidth: 1,

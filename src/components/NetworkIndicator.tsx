@@ -7,7 +7,7 @@ import { useNetwork } from '../contexts/NetworkContext';
 export function NetworkIndicator() {
   const { isConnected } = useNetwork();
   const insets = useSafeAreaInsets();
-  const topOffset = insets.top > 0 ? insets.top : (Platform.OS === 'android' ? StatusBar.currentHeight || 44 : 44);
+  const topOffset = (insets.top > 0 ? insets.top : (Platform.OS === 'android' ? StatusBar.currentHeight || 44 : 44)) + 110;
   const [showModal, setShowModal] = useState(false);
   const [hasShownModal, setHasShownModal] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));

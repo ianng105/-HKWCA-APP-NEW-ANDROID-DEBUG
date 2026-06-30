@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, StatusBar, Image, ActivityIndicator } from 'react-native';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
+import { View, Text, Pressable, StyleSheet, StatusBar, Image, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput, getAllCameraDevices } from 'react-native-vision-camera';
+import type { CameraRef, CameraDevice, PhotoFile } from 'react-native-vision-camera';
 import { Ionicons } from '@expo/vector-icons';
 
 type LocalPhoto = {
@@ -17,54 +18,100 @@ type Props = {
   onDelete?: (photoId: string) => void;
   photos: LocalPhoto[];
   maxPhotos: number;
-  enablePreview?: boolean;  // 是否啟用拍照後預覽
-}
+  enablePreview?: boolean;
+};
 
-export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos, maxPhotos, enablePreview = true }: Props) {
-  const [facing, setFacing] = useState<CameraType>('back');
+const ZOOM_PRESET_LABELS = [0.5, 1, 2, 4, 6, 8];
+const isAndroid = Platform.OS === 'android';
+
+export function CustomCamera({ onCapture, onComplete, onCancel, photos, maxPhotos, enablePreview = true }: Props) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
-  const [zoom, setZoom] = useState(0);
-  const zoomRangeRef = useRef({ min: 0, max: 1 });
+  const [zoom, setZoom] = useState(1);
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const cameraRef = useRef<CameraRef>(null);
+  const photoOutput = usePhotoOutput({
+    qualityPrioritization: 'quality',
+    quality: 1.0,
+  });
 
-  const ZOOM_PRESETS = [0.5, 1, 2, 4, 6, 8];
+  // 主相機裝置
+  const mainDevice = useCameraDevice('back', {
+    physicalDevices: ['ultra-wide-angle', 'wide-angle', 'telephoto'],
+  });
 
-  const zoomTargetForPreset = (preset: number) => {
-    const { min, max } = zoomRangeRef.current;
-    return ((preset - 0.5) / 7.5) * (max - min);
-  };
+  // Android ultra-wide workaround: find standalone ultra-wide device if main device doesn't include it
+  const ultraWideDevice = useMemo<CameraDevice | undefined>(() => {
+    if (!isAndroid) return undefined;
+    if (mainDevice?.physicalDevices.some((pd) => pd.type === 'ultra-wide-angle')) return undefined;
+    const devices = getAllCameraDevices();
+    return devices.find(
+      (d) => d.position === 'back' && d.type === 'ultra-wide-angle',
+    );
+  }, [mainDevice]);
+
+  const [useUltraWide, setUseUltraWide] = useState(false);
+  const activeDevice = useUltraWide && ultraWideDevice ? ultraWideDevice : mainDevice;
+
+  // Zoom presets clamped to device range
+  const clampedPresets = useMemo(() => {
+    if (!activeDevice) return ZOOM_PRESET_LABELS;
+    return ZOOM_PRESET_LABELS.map((p) =>
+      Math.min(Math.max(p, activeDevice.minZoom), activeDevice.maxZoom),
+    );
+  }, [activeDevice]);
+
+  // 去重後的縮放 preset（合併主裝置與超廣角裝置的有效範圍，避免 0.5x/1x 重疊）
+  const distinctPresets = useMemo(() => {
+    const effMinZoom = Math.min(
+      activeDevice?.minZoom ?? 1,
+      isAndroid && ultraWideDevice ? ultraWideDevice.minZoom : 99,
+    );
+    const effMaxZoom = Math.max(
+      activeDevice?.maxZoom ?? 1,
+      isAndroid && ultraWideDevice ? ultraWideDevice.maxZoom : 0,
+    );
+    const seen: { clamped: number; label: number }[] = [];
+    for (const label of ZOOM_PRESET_LABELS) {
+      const clamped = Math.min(Math.max(label, effMinZoom), effMaxZoom);
+      const dupIdx = seen.findIndex((s) => Math.abs(s.clamped - clamped) < 0.08);
+      if (dupIdx === -1) {
+        seen.push({ clamped, label });
+      } else if (Math.abs(label - clamped) < Math.abs(seen[dupIdx].label - seen[dupIdx].clamped)) {
+        seen[dupIdx] = { clamped, label };
+      }
+    }
+    return seen.map((s) => s.label);
+  }, [activeDevice, ultraWideDevice]);
+
+  const handleZoomPreset = useCallback(
+    (preset: number) => {
+      if (!activeDevice) return;
+      const clamped = Math.min(Math.max(preset, activeDevice.minZoom), activeDevice.maxZoom);
+      setZoom(clamped);
+      // Switch to ultra-wide device when 0.5x selected on Android
+      if (isAndroid && ultraWideDevice) {
+        setUseUltraWide(preset < 1);
+      }
+    },
+    [activeDevice, ultraWideDevice],
+  );
+
+  const isPresetActive = useCallback(
+    (preset: number) => {
+      if (!activeDevice) return false;
+      const effective = Math.min(Math.max(preset, activeDevice.minZoom), activeDevice.maxZoom);
+      return Math.abs(zoom - effective) < 0.05;
+    },
+    [zoom, activeDevice],
+  );
 
   const canAddMore = photos.length < maxPhotos;
-  // 啟用預覽模式（拍照後顯示確定/重拍按鈕）
   const isSinglePhotoMode = enablePreview;
+  const isActive = previewUri === null;
 
-  const handleZoomIn = () => {
-    setZoom((prev) => {
-      const { max } = zoomRangeRef.current;
-      return Math.min(prev + 0.1, max);
-    });
-  };
-
-  const handleZoomOut = () => {
-    setZoom((prev) => {
-      const { min } = zoomRangeRef.current;
-      return Math.max(prev - 0.1, min);
-    });
-  };
-
-  const handleZoomPreset = (preset: number) => {
-    const target = zoomTargetForPreset(preset);
-    const { min, max } = zoomRangeRef.current;
-    setZoom(Math.min(Math.max(target, min), max));
-  };
-
-  if (!permission) {
-    return <View />;
-  }
-
-  if (!permission.granted) {
+  // 權限請求
+  if (!hasPermission) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.permissionContainer}>
@@ -77,24 +124,29 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
     );
   }
 
+  // 裝置載入中
+  if (!activeDevice) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
+    );
+  }
+
   const takePicture = async () => {
-    if (cameraRef.current && canAddMore && !isCapturing) {
+    if (canAddMore && !isCapturing) {
       try {
         setIsCapturing(true);
-        
-        const photo = await cameraRef.current.takePictureAsync({
-          imageType: 'jpg',
-          quality: 1.0,
-          exif: true,
-        });
-        
-        if (photo?.uri) {
+        const photoFile: PhotoFile = await photoOutput.capturePhotoToFile(
+          { flashMode: 'off' },
+          {},
+        );
+        if (photoFile?.filePath) {
+          const fileUri = `file://${photoFile.filePath}`;
           if (isSinglePhotoMode) {
-            // 預覽模式：顯示確定/重拍按鈕
-            setPreviewUri(photo.uri);
+            setPreviewUri(fileUri);
           } else {
-            // 多張模式：直接添加
-            onCapture(photo.uri);
+            onCapture(fileUri);
           }
         }
       } catch (error) {
@@ -122,31 +174,21 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
     onCancel();
   };
 
-  // 單張模式：顯示預覽界面
+  // 預覽模式
   if (isSinglePhotoMode && previewUri) {
-    // 預覽模式：顯示確定/重拍按鈕
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#000000" />
-        
-        {/* 預覽圖片 */}
         <Image source={{ uri: previewUri }} style={styles.previewImage} />
-        
-        {/* 底部按鈕區域 */}
         <View style={styles.actionBar}>
-          {/* 取消按鈕 */}
           <Pressable style={styles.actionButtonCancel} onPress={handleCancel}>
             <Ionicons name="close" size={24} color="#FFFFFF" />
             <Text style={styles.actionButtonText}>取消</Text>
           </Pressable>
-
-          {/* 重拍按鈕 */}
           <Pressable style={styles.actionButtonLeft} onPress={handleRetake}>
             <Ionicons name="refresh" size={32} color="#FFFFFF" />
             <Text style={styles.actionButtonText}>重新拍</Text>
           </Pressable>
-
-          {/* 確定按鈕 */}
           <Pressable style={styles.actionButtonRight} onPress={handleConfirm}>
             <Ionicons name="checkmark" size={36} color="#FFFFFF" />
             <Text style={styles.actionButtonText}>確定</Text>
@@ -155,87 +197,82 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
       </View>
     );
   }
-  
-  console.log('[CustomCamera] ⏭️ 跳過預覽界面，進入拍攝模式');
 
   // 拍攝模式
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
-      
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={facing}
-        zoom={zoom}
-        onCameraReady={() => {}}
-      >
-        {/* 頂部控制欄 */}
-        <View style={styles.topBar}>
-          <Pressable style={styles.topButton} onPress={onCancel}>
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+
+      {/* 相機預覽 - 保持3:4比例顯示完整傳感器視野 */}
+      <View style={styles.cameraWrapper}>
+        <Camera
+          ref={cameraRef}
+          style={styles.camera}
+          device={activeDevice}
+          isActive={isActive}
+          outputs={[photoOutput]}
+          zoom={zoom}
+        />
+      </View>
+
+      {/* 頂部控制欄 */}
+      <SafeAreaView style={styles.topBar} edges={['top']}>
+        <Pressable style={styles.topButton} onPress={onCancel}>
+          <Ionicons name="close" size={24} color="#FFFFFF" />
+        </Pressable>
+      </SafeAreaView>
+
+      {/* 正在載入照片提示 */}
+      {isCapturing && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContainer}>
+            <Ionicons name="hourglass" size={48} color="#FFFFFF" />
+            <ActivityIndicator size="large" color="#FFFFFF" style={styles.loadingSpinner} />
+            <Text style={styles.loadingText}>正在載入照片...</Text>
+          </View>
+        </View>
+      )}
+
+      {/* 底部控制欄 */}
+      <SafeAreaView style={styles.bottomBar} edges={['bottom']}>
+        <View style={styles.bottomControls}>
+          {/* 縮放控制 */}
+          <View style={styles.zoomControls}>
+            {distinctPresets.map((preset) => (
+              <Pressable
+                key={preset}
+                style={[
+                  styles.zoomPresetButton,
+                  isPresetActive(preset) && styles.zoomPresetButtonActive,
+                ]}
+                onPress={() => handleZoomPreset(preset)}
+              >
+                <Text
+                  style={[
+                    styles.zoomPresetText,
+                    isPresetActive(preset) && styles.zoomPresetTextActive,
+                  ]}
+                >
+                  {preset}x
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* 拍照按鈕 */}
+          <Pressable
+            style={[styles.captureButton, (!canAddMore || isCapturing) && styles.captureButtonDisabled]}
+            onPress={takePicture}
+            disabled={!canAddMore || isCapturing}
+          >
+            <View style={styles.captureButtonInner} />
           </Pressable>
         </View>
 
-        {/* 正在載入照片提示 */}
-        {isCapturing && (
-          <View style={styles.loadingOverlay}>
-            <View style={styles.loadingContainer}>
-              <Ionicons name="hourglass" size={48} color="#FFFFFF" />
-              <ActivityIndicator size="large" color="#FFFFFF" style={styles.loadingSpinner} />
-              <Text style={styles.loadingText}>正在載入照片...</Text>
-            </View>
-          </View>
-        )}
-
-        {/* 底部控制欄 */}
-        <SafeAreaView style={styles.bottomBar}>
-          <View style={styles.bottomControls}>
-            {/* 左邊：縮放控制 */}
-            <View style={styles.zoomControls}>
-              {ZOOM_PRESETS.map((preset) => (
-                <Pressable
-                  key={preset}
-                  style={[
-                    styles.zoomPresetButton,
-                    Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetButtonActive,
-                  ]}
-                  onPress={() => handleZoomPreset(preset)}
-                >
-                  <Text style={[
-                    styles.zoomPresetText,
-                    Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetTextActive,
-                  ]}>
-                    {preset}x
-                  </Text>
-                </Pressable>
-              ))}
-              <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 4 }} />
-              <Pressable style={styles.zoomButton} onPress={handleZoomOut}>
-                <Ionicons name="remove" size={20} color="#FFFFFF" />
-              </Pressable>
-              <Pressable style={styles.zoomButton} onPress={handleZoomIn}>
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-              </Pressable>
-            </View>
-
-            {/* 中間：拍照按鈕 */}
-            <Pressable
-              style={[styles.captureButton, (!canAddMore || isCapturing) && styles.captureButtonDisabled]}
-              onPress={takePicture}
-              disabled={!canAddMore || isCapturing}
-            >
-              <View style={styles.captureButtonInner} />
-            </Pressable>
-
-          </View>
-
-          {/* 提示文字 */}
-          <Text style={styles.hintText}>
-            {isSinglePhotoMode ? '請拍攝一張相片' : `${photos.length}/${maxPhotos} 張相片`}
-          </Text>
-        </SafeAreaView>
-      </CameraView>
+        <Text style={styles.hintText}>
+          {isSinglePhotoMode ? '請拍攝一張相片' : `${photos.length}/${maxPhotos} 張相片`}
+        </Text>
+      </SafeAreaView>
     </View>
   );
 }
@@ -245,10 +282,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  camera: {
-    flex: 1,
+  cameraWrapper: {
+    position: 'absolute',
+    top: 80,
+    left: 0,
+    right: 0,
+    bottom: 170,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
-  
+  camera: {
+    width: '100%',
+    aspectRatio: 3 / 4,
+    maxHeight: '100%',
+  },
+
   // 權限請求
   permissionContainer: {
     flex: 1,
@@ -274,16 +323,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // 拍攝模式 - 頂部控制欄
+  // 頂部控制欄
   topBar: {
     position: 'absolute',
-    top: 44,
+    top: 0,
     left: 0,
     right: 0,
-    height: 60,
     flexDirection: 'row',
     justifyContent: 'flex-start',
     paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 12,
     zIndex: 100,
   },
   topButton: {
@@ -295,13 +345,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // 拍攝模式 - 底部控制欄
+  // 底部控制欄
   bottomBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 100,
   },
   bottomControls: {
     flexDirection: 'row',
@@ -309,14 +360,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 40,
     paddingVertical: 20,
-  },
-  sideButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   zoomControls: {
     flexDirection: 'row',
@@ -348,58 +391,6 @@ const styles = StyleSheet.create({
   zoomPresetTextActive: {
     color: '#000000',
   },
-  zoomButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  galleryButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    position: 'relative',
-  },
-  galleryImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  galleryBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: 'rgba(0, 153, 153, 0.9)',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  galleryBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  completeButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0, 153, 153, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  completeButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
   captureButton: {
     width: 70,
     height: 70,
@@ -419,27 +410,8 @@ const styles = StyleSheet.create({
   captureButtonDisabled: {
     opacity: 0.5,
   },
-  maxPhotosIndicator: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(74, 124, 140, 0.8)',
-    borderRadius: 40,
-  },
-  photoCountText: {
-    textAlign: 'center',
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 6,
-    marginBottom: 4,
-  },
 
-  // 正在載入照片的覆蓋層
+  // 載入中
   loadingOverlay: {
     position: 'absolute',
     top: 0,
@@ -468,82 +440,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // 已拍攝照片縮略圖（拍攝模式）
-  thumbnailContainerShoot: {
-    position: 'absolute',
-    bottom: 130,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingVertical: 6,
-  },
-  thumbnailScroll: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  thumbnailImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  thumbnailItemSmall: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    position: 'relative',
-  },
-  thumbnailBadgeSmall: {
-    position: 'absolute',
-    top: 3,
-    right: 3,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(74, 124, 140, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  thumbnailDeleteBtn: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  thumbnailBadgeTextSmall: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  // 預覽模式樣式
+  // 預覽模式
   previewImage: {
     flex: 1,
     resizeMode: 'contain',
     backgroundColor: '#000000',
-  },
-  previewTopBar: {
-    position: 'absolute',
-    top: 44,  // iOS 狀態欄高度約 44
-    left: 0,
-    right: 0,
-    height: 60,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 20,
-    zIndex: 100,
   },
   actionBar: {
     position: 'absolute',

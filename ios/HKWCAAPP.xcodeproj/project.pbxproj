@@ -8,11 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		2751E295F87598DFE2B1DD33 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6E3070E46C31D9E1CBCD97BB /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		53B4F93B8A2EB70C3432C39B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E640261B39D8E485DA08195 /* ExpoModulesProvider.swift */; };
+		6B04B3DE34C19BD99AC7B024 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B8E5E010EA6A86B957DC28 /* ExpoModulesProvider.swift */; };
+		B381C9D869975F36571FBFE5 /* libPods-HKWCAAPP.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E0BC16F025FCDF09CBB94F8 /* libPods-HKWCAAPP.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		DCB06E99D3F896B15CC535F6 /* libPods-HKWCAAPP.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BCFB6DECDEC89623FA32623D /* libPods-HKWCAAPP.a */; };
-		ECB4000DC48DAB66A8635AB0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4D216FDC3A161998C828962E /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -20,13 +20,13 @@
 		13B07F961A680F5B00A75B9A /* HKWCAAPP.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HKWCAAPP.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = HKWCAAPP/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = HKWCAAPP/Info.plist; sourceTree = "<group>"; };
-		1E640261B39D8E485DA08195 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-HKWCAAPP/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		4D216FDC3A161998C828962E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = HKWCAAPP/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		5ADC6CFFDCA1C3ACA78BA25B /* Pods-HKWCAAPP.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HKWCAAPP.release.xcconfig"; path = "Target Support Files/Pods-HKWCAAPP/Pods-HKWCAAPP.release.xcconfig"; sourceTree = "<group>"; };
+		1E0BC16F025FCDF09CBB94F8 /* libPods-HKWCAAPP.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-HKWCAAPP.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5BD6E5F6579BF071439A9D6E /* Pods-HKWCAAPP.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HKWCAAPP.release.xcconfig"; path = "Target Support Files/Pods-HKWCAAPP/Pods-HKWCAAPP.release.xcconfig"; sourceTree = "<group>"; };
+		6E3070E46C31D9E1CBCD97BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = HKWCAAPP/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = HKWCAAPP/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		BCFB6DECDEC89623FA32623D /* libPods-HKWCAAPP.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-HKWCAAPP.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		E28D56799E177BF134BE090D /* Pods-HKWCAAPP.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HKWCAAPP.debug.xcconfig"; path = "Target Support Files/Pods-HKWCAAPP/Pods-HKWCAAPP.debug.xcconfig"; sourceTree = "<group>"; };
+		C8B8E5E010EA6A86B957DC28 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-HKWCAAPP/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		DE5A66E5205F2EA9A7D20908 /* Pods-HKWCAAPP.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HKWCAAPP.debug.xcconfig"; path = "Target Support Files/Pods-HKWCAAPP/Pods-HKWCAAPP.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = HKWCAAPP/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* HKWCAAPP-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "HKWCAAPP-Bridging-Header.h"; path = "HKWCAAPP/HKWCAAPP-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -37,7 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DCB06E99D3F896B15CC535F6 /* libPods-HKWCAAPP.a in Frameworks */,
+				B381C9D869975F36571FBFE5 /* libPods-HKWCAAPP.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,28 +53,34 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				4D216FDC3A161998C828962E /* PrivacyInfo.xcprivacy */,
+				6E3070E46C31D9E1CBCD97BB /* PrivacyInfo.xcprivacy */,
 			);
 			name = HKWCAAPP;
+			sourceTree = "<group>";
+		};
+		17354AEA0C30E338D291698F /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				3623EE80027A3A0CEAA41904 /* HKWCAAPP */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				BCFB6DECDEC89623FA32623D /* libPods-HKWCAAPP.a */,
+				1E0BC16F025FCDF09CBB94F8 /* libPods-HKWCAAPP.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		447D0DCEBE6D1B8108A8F039 /* Pods */ = {
+		3623EE80027A3A0CEAA41904 /* HKWCAAPP */ = {
 			isa = PBXGroup;
 			children = (
-				E28D56799E177BF134BE090D /* Pods-HKWCAAPP.debug.xcconfig */,
-				5ADC6CFFDCA1C3ACA78BA25B /* Pods-HKWCAAPP.release.xcconfig */,
+				C8B8E5E010EA6A86B957DC28 /* ExpoModulesProvider.swift */,
 			);
-			name = Pods;
-			path = Pods;
+			name = HKWCAAPP;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -91,8 +97,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				447D0DCEBE6D1B8108A8F039 /* Pods */,
-				C810C2B79502498A3215B494 /* ExpoModulesProviders */,
+				D10E0E03F51A0A6995B9328A /* Pods */,
+				17354AEA0C30E338D291698F /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -107,14 +113,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		9B759408E70A5478C6D8B5F8 /* HKWCAAPP */ = {
-			isa = PBXGroup;
-			children = (
-				1E640261B39D8E485DA08195 /* ExpoModulesProvider.swift */,
-			);
-			name = HKWCAAPP;
-			sourceTree = "<group>";
-		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -124,12 +122,14 @@
 			path = HKWCAAPP/Supporting;
 			sourceTree = "<group>";
 		};
-		C810C2B79502498A3215B494 /* ExpoModulesProviders */ = {
+		D10E0E03F51A0A6995B9328A /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				9B759408E70A5478C6D8B5F8 /* HKWCAAPP */,
+				DE5A66E5205F2EA9A7D20908 /* Pods-HKWCAAPP.debug.xcconfig */,
+				5BD6E5F6579BF071439A9D6E /* Pods-HKWCAAPP.release.xcconfig */,
 			);
-			name = ExpoModulesProviders;
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "HKWCAAPP" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				F845F9804DB7D96BF996CD18 /* [Expo] Configure project */,
+				CF0D5FCFDC818E2ABC2E39EA /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				0C00A536189C7177EA7916F8 /* [CP] Embed Pods Frameworks */,
+				73BA051BBE2ED13C33BC5A5C /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				ECB4000DC48DAB66A8635AB0 /* PrivacyInfo.xcprivacy in Resources */,
+				2751E295F87598DFE2B1DD33 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,7 +242,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		0C00A536189C7177EA7916F8 /* [CP] Embed Pods Frameworks */ = {
+		73BA051BBE2ED13C33BC5A5C /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -302,7 +302,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-HKWCAAPP/Pods-HKWCAAPP-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		F845F9804DB7D96BF996CD18 /* [Expo] Configure project */ = {
+		CF0D5FCFDC818E2ABC2E39EA /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -334,7 +334,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				53B4F93B8A2EB70C3432C39B /* ExpoModulesProvider.swift in Sources */,
+				6B04B3DE34C19BD99AC7B024 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -343,7 +343,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E28D56799E177BF134BE090D /* Pods-HKWCAAPP.debug.xcconfig */;
+			baseConfigurationReference = DE5A66E5205F2EA9A7D20908 /* Pods-HKWCAAPP.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -379,7 +379,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 5ADC6CFFDCA1C3ACA78BA25B /* Pods-HKWCAAPP.release.xcconfig */;
+			baseConfigurationReference = 5BD6E5F6579BF071439A9D6E /* Pods-HKWCAAPP.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

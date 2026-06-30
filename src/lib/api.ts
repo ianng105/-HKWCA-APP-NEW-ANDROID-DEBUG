@@ -279,17 +279,15 @@ export async function getSignedUploadUrl(
 }
 
 /**
- * 使用簽名 URL 上傳文件到 Storage
+ * 直接 POST 上傳文件到 Supabase Storage（使用 Edge Function 回傳的 URL + 用戶 JWT）
  */
-export async function uploadFileWithSignedUrl(
-  signedUrl: string,
+export async function uploadFileToStorage(
+  uploadUrl: string,
   fileUri: string,
   contentType: string = 'image/jpeg',
-  onProgress?: (percent: number) => void,
   signal?: AbortSignal,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // 讀取文件
     const fileInfo = await FileSystem.getInfoAsync(fileUri);
     if (!fileInfo.exists) {
       return { success: false, error: 'File not found' };
@@ -303,20 +301,23 @@ export async function uploadFileWithSignedUrl(
       encoding: FileSystem.EncodingType.Base64,
     });
 
-    // 將 base64 轉為二進制
+    // 轉為 Uint8Array（whatwg-fetch 認得 ArrayBufferView）
     const binary = atob(base64);
-    const array = new Uint8Array(binary.length);
+    const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
-      array[i] = binary.charCodeAt(i);
+      bytes[i] = binary.charCodeAt(i);
     }
 
-    // 使用 fetch PUT 請求上傳
-    const response = await fetch(signedUrl, {
-      method: 'PUT',
+    const accessToken = getAccessToken();
+
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
       headers: {
         'Content-Type': contentType,
+        'apikey': API_KEY,
+        'Authorization': `Bearer ${accessToken}`,
       },
-      body: array.buffer,
+      body: bytes,
       signal,
     });
 
