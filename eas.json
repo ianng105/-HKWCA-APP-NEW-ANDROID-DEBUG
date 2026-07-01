@@ -21,6 +21,10 @@
     "production": {
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "distribution": "store",
+        "scheme": "HKWCAAPP"
       }
     }
   },
