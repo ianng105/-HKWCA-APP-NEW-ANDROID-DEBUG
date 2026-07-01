@@ -63,6 +63,11 @@ target 'HKWCAAPP' do
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        # Xcode 26.0 SDK Swift compiler bug: VisionCamera WMO 會 crash
+        # 改用 singlefile 模式避免 swift-frontend fatal_error
+        if target.name == 'VisionCamera'
+          config.build_settings['SWIFT_COMPILATION_MODE'] = 'singlefile'
+        end
       end
     end
   end
