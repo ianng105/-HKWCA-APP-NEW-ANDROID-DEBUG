@@ -11,7 +11,7 @@ type LocalPhoto = {
 };
 
 type Props = {
-  onCapture: (uri: string) => void;
+  onCapture: (uri: string, exifDatetime?: string) => void;
   onComplete: () => void;
   onCancel: () => void;
   onDelete?: (photoId: string) => void;
@@ -91,12 +91,21 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
         });
         
         if (photo?.uri) {
+          let exifDatetime: string | undefined;
+          if (photo.exif) {
+            const exif = photo.exif as Record<string, any>;
+            const raw = exif.DateTimeOriginal || exif.DateTimeDigitized;
+            if (raw && typeof raw === 'string') {
+              const m = (raw as string).match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+              if (m) exifDatetime = m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5] + ':' + m[6];
+            }
+          }
+          console.log('📷 Camera EXIF datetime:', exifDatetime || 'none');
           if (isSinglePhotoMode) {
-            // 預覽模式：顯示確定/重拍按鈕
             setPreviewUri(photo.uri);
+            (global as any).__pendingExifDatetime = exifDatetime;
           } else {
-            // 多張模式：直接添加
-            onCapture(photo.uri);
+            onCapture(photo.uri, exifDatetime);
           }
         }
       } catch (error) {
@@ -109,8 +118,10 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
 
   const handleConfirm = () => {
     if (previewUri) {
-      onCapture(previewUri);
+      const exifDatetime = (global as any).__pendingExifDatetime;
+      onCapture(previewUri, exifDatetime);
       setPreviewUri(null);
+      (global as any).__pendingExifDatetime = undefined;
       onComplete();
     }
   };

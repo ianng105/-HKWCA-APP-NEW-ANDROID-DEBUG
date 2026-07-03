@@ -400,7 +400,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
     });
   };
 
-  const handleCameraCapture = async (uri: string) => {
+  const handleCameraCapture = async (uri: string, exifDatetime?: string) => {
     // 檢查數量限制
     if (photos.length >= MAX_PHOTOS) {
       Alert.alert('提示', `最多只能上傳 ${MAX_PHOTOS} 張相片`);
@@ -425,7 +425,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
       uri,
       location: currentLocation,
       exifGps: currentLocation ? { latitude: currentLocation.latitude, longitude: currentLocation.longitude } : undefined,
-      exif_datetime: timestamp,  // 拍攝時間 = 當前時間（相機剛拍，與 EXIF 無異）
+      exif_datetime: exifDatetime || timestamp,  // 優先使用相機 EXIF 拍攝時間
       gpsSource: currentLocation ? 'manual' : undefined,
     };
     setPhotos((prev) => [...prev, newPhoto]);
@@ -2496,7 +2496,7 @@ const styles = StyleSheet.create({
   },
   flowButtonSelected: {
     borderColor: '#EF4444',
-    borderWidth: 2,
+    borderWidth: 3,
   },
   flowButtonSubmitted: {
     opacity: 0.6,
@@ -2564,6 +2564,7 @@ const styles = StyleSheet.create({
   },
   periodButtonSelected: {
     borderColor: '#EF4444',
+    borderWidth: 3,
     // backgroundColor 由動態設置控制
   },
   periodButtonSubmitted: {
