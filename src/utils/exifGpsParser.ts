@@ -21,7 +21,7 @@ export interface GPSInfo {
   longitude: number;
   source: 'exif-native' | 'exif-parsed' | 'media-library' | 'manual';
   accuracy?: 'high' | 'medium' | 'low';
-  datetime?: string; // EXIF 拍攝時間
+  datetime?: string | null; // EXIF 拍攝時間
 }
 
 /**
@@ -278,16 +278,17 @@ function normalizeGpsDatetime(dateStamp: string, timeStamp: number[]): string | 
  */
 export async function parseGpsFromFile(
   uri: string
-): Promise<{ gps: GPSInfo | null; error?: string }> {
+): Promise<{ gps: GPSInfo | null; datetime?: string; error?: string }> {
   const methods: string[] = [];
-  
+
   try {
     // 方法 1: 嘗試只讀取前 64KB（EXIF 通常在這裡）
     methods.push('partial-read');
-    const partialGps = await tryReadPartialFile(uri);
-    if (partialGps) {
+    const partialResult = await tryReadPartialFile(uri);
+    if (partialResult) {
       return {
-        gps: { ...partialGps, source: 'exif-parsed', accuracy: 'high' }
+        gps: { latitude: partialResult.latitude, longitude: partialResult.longitude, source: 'exif-parsed', accuracy: 'high' },
+        datetime: partialResult.datetime,
       };
     }
 
@@ -295,10 +296,11 @@ export async function parseGpsFromFile(
     methods.push('full-read');
     const fileInfo = await FileSystem.getInfoAsync(uri);
     if (fileInfo.exists && 'size' in fileInfo && fileInfo.size < 5 * 1024 * 1024) { // < 5MB
-      const fullGps = await tryReadFullFile(uri);
-      if (fullGps) {
+      const fullResult = await tryReadFullFile(uri);
+      if (fullResult) {
         return {
-          gps: { ...fullGps, source: 'exif-parsed', accuracy: 'high' }
+          gps: { latitude: fullResult.latitude, longitude: fullResult.longitude, source: 'exif-parsed', accuracy: 'high' },
+          datetime: fullResult.datetime,
         };
       }
     }
@@ -319,17 +321,17 @@ export async function parseGpsFromFile(
 /**
  * 嘗試只讀取文件前 64KB 解析 EXIF
  */
-async function tryReadPartialFile(uri: string): Promise<{ latitude: number; longitude: number } | null> {
+async function tryReadPartialFile(uri: string): Promise<{ latitude: number; longitude: number; datetime?: string } | null> {
   try {
     const header = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
       length: 65536,
       position: 0,
     });
-    
+
     if (!header) return null;
-    
-    return parseExifGpsFromBase64(header);
+
+    return parseExifGpsFromBase64Internal(header);
   } catch (error) {
     console.log('部分讀取失敗:', error);
     return null;
@@ -339,15 +341,15 @@ async function tryReadPartialFile(uri: string): Promise<{ latitude: number; long
 /**
  * 嘗試讀取整個文件解析 EXIF
  */
-async function tryReadFullFile(uri: string): Promise<{ latitude: number; longitude: number } | null> {
+async function tryReadFullFile(uri: string): Promise<{ latitude: number; longitude: number; datetime?: string } | null> {
   try {
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });
     
     if (!base64) return null;
-    
-    return parseExifGpsFromBase64(base64);
+
+    return parseExifGpsFromBase64Internal(base64);
   } catch (error) {
     console.log('完整讀取失敗:', error);
     return null;
@@ -424,6 +426,7 @@ export async function checkPhotoGPS(
   uri: string,
   exifObject?: Record<string, any> | null
 ): Promise<GPSCheckResult> {
+  const startTime = Date.now();
   const checkedMethods: string[] = [];
 
   // 提取 EXIF 時間（無論 GPS 是否存在）
@@ -435,11 +438,13 @@ export async function checkPhotoGPS(
     }
   }
 
-  // 方法 1: 檢查 ImagePicker 返回的 exif 對象
+  // 方法 1: 檢查 ImagePicker 返回的 exif 對象（同步，最快）
   checkedMethods.push('exif-object');
   if (exifObject) {
     const exifGps = extractGpsFromExifObject(exifObject);
     if (exifGps) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`⏱️ [GPS] exif-object 成功，耗時 ${elapsed}s`);
       return {
         hasGPS: true,
         gps: exifGps,
@@ -449,25 +454,33 @@ export async function checkPhotoGPS(
     }
   }
 
-  // 方法 2: 直接讀取文件解析
-  // 注意：在 Expo Go 中，content:// URI 可能無法訪問
-  if (!uri.startsWith('content://') || uri.startsWith('file://')) {
-    checkedMethods.push('file-parse');
-    const fileResult = await parseGpsFromFile(uri);
-    if (fileResult.gps) {
-      return {
-        hasGPS: true,
-        gps: fileResult.gps,
-        datetime,
-        checkedMethods
-      };
-    }
+  // 方法 2+3: 並行執行 file-parse 和 media-library（互不依賴）
+  checkedMethods.push('file-parse');
+  checkedMethods.push('media-library');
+  const [fileResult, mediaResult] = await Promise.all([
+    parseGpsFromFile(uri),
+    getGpsFromMediaLibrary(uri),
+  ]);
+
+  if (fileResult.gps) {
+    const bestDatetime = fileResult.datetime || datetime;
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`⏱️ [GPS] file-parse 成功，耗時 ${elapsed}s`);
+    return {
+      hasGPS: true,
+      gps: fileResult.gps,
+      datetime: bestDatetime,
+      checkedMethods
+    };
+  }
+  // 即使沒有 GPS，也可能有 datetime
+  if (fileResult.datetime && !datetime) {
+    datetime = fileResult.datetime;
   }
 
-  // 方法 3: 嘗試 MediaLibrary
-  checkedMethods.push('media-library');
-  const mediaResult = await getGpsFromMediaLibrary(uri);
   if (mediaResult.gps) {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`⏱️ [GPS] media-library 成功，耗時 ${elapsed}s`);
     return {
       hasGPS: true,
       gps: mediaResult.gps,
@@ -479,15 +492,18 @@ export async function checkPhotoGPS(
   // 都失敗了 - 分析原因
   let reason: GPSCheckResult['reason'] = 'not-found';
 
-  if (uri.startsWith('content://')) {
-    reason = 'file-access-error';
-  } else if (mediaResult.error?.includes('permission')) {
+  if (mediaResult.error?.includes('permission')) {
     reason = 'no-permission';
+  } else if (fileResult.error) {
+    reason = 'file-access-error';
   }
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(`⏱️ [GPS] 所有本地方法失敗，耗時 ${elapsed}s，原因: ${reason}`);
 
   return {
     hasGPS: false,
-    datetime, // 即使沒有 GPS，也返回時間
+    datetime,
     reason,
     checkedMethods
   };
@@ -537,7 +553,7 @@ export function getGPSCheckErrorMessage(result: GPSCheckResult): string {
 
 // ============== 內部 EXIF 解析函數 ==============
 
-function parseExifGpsFromBase64Internal(base64String: string): { latitude: number; longitude: number } | null {
+function parseExifGpsFromBase64Internal(base64String: string): { latitude: number; longitude: number; datetime?: string } | null {
   try {
     const binaryString = atob(base64String);
     const bytes = new Uint8Array(binaryString.length);
@@ -550,50 +566,50 @@ function parseExifGpsFromBase64Internal(base64String: string): { latitude: numbe
   }
 }
 
-function parseExifGpsFromBuffer(buffer: Uint8Array): { latitude: number; longitude: number } | null {
+function parseExifGpsFromBuffer(buffer: Uint8Array): { latitude: number; longitude: number; datetime?: string } | null {
   try {
     if (buffer.length < 2 || buffer[0] !== 0xFF || buffer[1] !== 0xD8) {
       return null;
     }
 
     let offset = 2;
-    
+
     while (offset < buffer.length - 4) {
       if (buffer[offset] !== 0xFF) {
         offset++;
         continue;
       }
-      
+
       const marker = buffer[offset + 1];
-      
+
       if (marker === 0x00 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD9)) {
         offset += 2;
         continue;
       }
-      
+
       const segmentLength = (buffer[offset + 2] << 8) | buffer[offset + 3];
-      
+
       if (segmentLength < 2 || offset + 2 + segmentLength > buffer.length) {
         offset += 2;
         continue;
       }
-      
+
       if (marker === 0xE1) {
         const segmentData = buffer.slice(offset + 4, offset + 4 + segmentLength - 2);
         const gps = parseExifSegment(segmentData);
         if (gps) return gps;
       }
-      
+
       offset += 2 + segmentLength;
     }
   } catch (error) {
     console.log('Buffer 解析失敗:', error);
   }
-  
+
   return null;
 }
 
-function parseExifSegment(data: Uint8Array): { latitude: number; longitude: number } | null {
+function parseExifSegment(data: Uint8Array): { latitude: number; longitude: number; datetime?: string } | null {
   try {
     if (data.length < 14) return null;
 
@@ -601,47 +617,107 @@ function parseExifSegment(data: Uint8Array): { latitude: number; longitude: numb
     for (let i = 0; i < exifHeader.length; i++) {
       if (data[i] !== exifHeader.charCodeAt(i)) return null;
     }
-    
+
     const tiffStart = 6;
     const isLittleEndian = data[tiffStart] === 0x49 && data[tiffStart + 1] === 0x49;
     const isBigEndian = data[tiffStart] === 0x4D && data[tiffStart + 1] === 0x4D;
-    
+
     if (!isLittleEndian && !isBigEndian) return null;
-    
+
     const readUInt16 = (offset: number): number => {
       if (isLittleEndian) {
         return data[offset] | (data[offset + 1] << 8);
       }
       return (data[offset] << 8) | data[offset + 1];
     };
-    
+
     const readUInt32 = (offset: number): number => {
       if (isLittleEndian) {
         return (data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24)) >>> 0;
       }
       return ((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]) >>> 0;
     };
-    
+
+    /** Read an ASCII string from a TIFF tag value (type 2) at an IFD entry */
+    const readAsciiTag = (entryOffset: number): string | null => {
+      const type = readUInt16(entryOffset + 2);
+      if (type !== 2) return null; // ASCII
+      const count = readUInt32(entryOffset + 4);
+      const valueOrOffset = readUInt32(entryOffset + 8);
+      if (count > 4) {
+        // Value is stored at offset from TIFF start
+        const strOffset = tiffStart + valueOrOffset;
+        if (strOffset + count > data.length) return null;
+        let str = '';
+        for (let j = 0; j < count - 1; j++) { // skip null terminator
+          const ch = data[strOffset + j];
+          if (ch === 0) break;
+          str += String.fromCharCode(ch);
+        }
+        return str || null;
+      }
+      // Value fits inline
+      let str = '';
+      for (let j = 0; j < count - 1 && j < 4; j++) {
+        const ch = data[entryOffset + 8 + j];
+        if (ch === 0) break;
+        str += String.fromCharCode(ch);
+      }
+      return str || null;
+    };
+
     if (readUInt16(tiffStart + 2) !== 0x002A) return null;
-    
+
     const ifd0Offset = readUInt32(tiffStart + 4);
     if (tiffStart + ifd0Offset + 2 > data.length) return null;
-    
+
     const numEntries = readUInt16(tiffStart + ifd0Offset);
     let gpsIfdOffset: number | null = null;
-    
+    let exifIfdOffset: number | null = null;
+    let datetime: string | null = null;
+
+    // Scan IFD0 for GPS pointer, ExifIFD pointer, and datetime tags
     for (let i = 0; i < numEntries; i++) {
       const entryOffset = tiffStart + ifd0Offset + 2 + i * 12;
       if (entryOffset + 12 > data.length) break;
-      
+
       const tag = readUInt16(entryOffset);
-      
+
       if (tag === 0x8825) {
         gpsIfdOffset = readUInt32(entryOffset + 8);
-        break;
+      } else if (tag === 0x8769) {
+        exifIfdOffset = readUInt32(entryOffset + 8);
+      } else if (tag === 0x0132 || tag === 0x9003 || tag === 0x9004) {
+        // DateTime (0x0132), DateTimeOriginal (0x9003), DateTimeDigitized (0x9004)
+        if (!datetime) {
+          const dt = readAsciiTag(entryOffset);
+          if (dt) datetime = dt;
+        }
+        // Prefer DateTimeOriginal (0x9003) over others
+        if (tag === 0x9003) {
+          const dt = readAsciiTag(entryOffset);
+          if (dt) datetime = dt;
+        }
       }
     }
-    
+
+    // If no datetime in IFD0, check Exif SubIFD
+    if (!datetime && exifIfdOffset !== null) {
+      const subIfdPos = tiffStart + exifIfdOffset;
+      if (subIfdPos + 2 <= data.length) {
+        const subNumEntries = readUInt16(subIfdPos);
+        for (let i = 0; i < subNumEntries; i++) {
+          const entryOffset = subIfdPos + 2 + i * 12;
+          if (entryOffset + 12 > data.length) break;
+          const tag = readUInt16(entryOffset);
+          if (tag === 0x9003 || tag === 0x9004 || tag === 0x0132) {
+            const dt = readAsciiTag(entryOffset);
+            if (dt) { datetime = dt; break; }
+          }
+        }
+      }
+    }
+
     if (gpsIfdOffset === null || tiffStart + gpsIfdOffset + 2 > data.length) return null;
     
     const gpsOffset = tiffStart + gpsIfdOffset;
@@ -679,23 +755,30 @@ function parseExifSegment(data: Uint8Array): { latitude: number; longitude: numb
     if (latitude !== null && longitude !== null && latitudeRef && longitudeRef) {
       if (latitudeRef === 'S' || latitudeRef === 's') latitude = -latitude;
       if (longitudeRef === 'W' || longitudeRef === 'w') longitude = -longitude;
-      
-      if (!isNaN(latitude) && !isNaN(longitude) && 
-          latitude >= -90 && latitude <= 90 && 
+
+      if (!isNaN(latitude) && !isNaN(longitude) &&
+          latitude >= -90 && latitude <= 90 &&
           longitude >= -180 && longitude <= 180) {
         // 檢查 GPS 是否有效（排除 0.000, 0.000）
         if (!isValidGPS(latitude, longitude)) {
           console.log('⚠️ EXIF Segment GPS 無效 (0.000,0.000):', latitude, longitude);
           return null;
         }
-        
-        return { latitude, longitude };
+
+        const result: { latitude: number; longitude: number; datetime?: string } = { latitude, longitude };
+        if (datetime) {
+          result.datetime = normalizeExifDatetime(datetime) ?? undefined;
+          if (result.datetime) {
+            console.log(`📅 二進制解析 EXIF 時間: ${result.datetime}`);
+          }
+        }
+        return result;
       }
     }
   } catch (error) {
     console.log('EXIF 段解析失敗:', error);
   }
-  
+
   return null;
 }
 
@@ -748,6 +831,11 @@ export async function parseExifGpsFromUri(uri: string): Promise<GPSInfo | null> 
 }
 
 export async function parseExifGpsFromBase64(base64: string): Promise<GPSInfo | null> {
-  const gps = parseExifGpsFromBase64Internal(base64);
-  return gps ? { ...gps, source: 'exif-parsed', accuracy: 'high' } : null;
+  const result = parseExifGpsFromBase64Internal(base64);
+  if (result) {
+    const gps: GPSInfo = { latitude: result.latitude, longitude: result.longitude, source: 'exif-parsed', accuracy: 'high' };
+    if (result.datetime) gps.datetime = result.datetime;
+    return gps;
+  }
+  return null;
 }

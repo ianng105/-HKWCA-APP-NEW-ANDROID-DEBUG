@@ -295,39 +295,27 @@ export async function uploadFileToStorage(
 
     const fileSize = 'size' in fileInfo ? fileInfo.size : 0;
     console.log(`📁 [Upload] 文件大小: ${fileSize} bytes`);
+    console.log(`📁 [Upload] 上傳 URL: ${uploadUrl.substring(0, 120)}...`);
 
-    // 讀取文件為 base64
-    const base64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    // 轉為 Uint8Array（whatwg-fetch 認得 ArrayBufferView）
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-
-    const accessToken = getAccessToken();
-
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
+    // 使用 expo-file-system 的 uploadAsync
+    // 注意：Supabase signed URL 已包含 token，不需要額外 auth headers
+    const result = await FileSystem.uploadAsync(uploadUrl, fileUri, {
+      httpMethod: 'PUT',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
       headers: {
         'Content-Type': contentType,
-        'apikey': API_KEY,
-        'Authorization': `Bearer ${accessToken}`,
       },
-      body: bytes,
-      signal,
     });
 
-    if (response.ok) {
+    console.log(`📁 [Upload] 回應狀態: ${result.status}`);
+    console.log(`📁 [Upload] 回應內容: ${result.body}`);
+
+    if (result.status >= 200 && result.status < 300) {
       console.log('✅ [Upload] 文件上傳成功');
       return { success: true };
     } else {
-      const errorText = await response.text();
-      console.error('❌ [Upload] 文件上傳失敗:', response.status, errorText);
-      return { success: false, error: `Upload failed: ${response.status}` };
+      console.error('❌ [Upload] 文件上傳失敗:', result.status, result.body);
+      return { success: false, error: `Upload failed: ${result.status} - ${result.body}` };
     }
   } catch (error) {
     console.error('❌ [Upload] 上傳異常:', error);

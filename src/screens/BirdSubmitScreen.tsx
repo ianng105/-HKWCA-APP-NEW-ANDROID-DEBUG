@@ -26,7 +26,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
 import { checkPhotoGPS, quickCheckGPS, getGPSCheckErrorMessage, type GPSCheckResult } from '../utils/exifGpsParser';
 import { extractGPSWithFallback, GPSExtractionResult } from '../lib/exifToolsApi';
-import { extractExifFromPhoto } from '../lib/exifExtractor';
+
 
 import { useAuth } from '../contexts/AuthContext';
 import { functionsFetch, restFetch, getSignedUploadUrl, uploadFileToStorage } from '../lib/api';
@@ -277,28 +277,48 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
   };
 
   const getCurrentLocation = async (): Promise<PickedLocation | null> => {
+    const locStart = Date.now();
     try {
       const req = await Location.requestForegroundPermissionsAsync();
       if (req.status !== 'granted') {
         setHasGpsPermission(false);
+        const elapsed = ((Date.now() - locStart) / 1000).toFixed(2);
+        console.log(`⏱️ [定位] 權限被拒，耗時 ${elapsed}s`);
         return null;
       }
 
-      // 權限已授予，嘗試獲取位置
+      // 方法 1: 先嘗試獲取最後已知位置（通常瞬間返回）
       try {
-        const pos = await Location.getCurrentPositionAsync({ 
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown) {
+          const location = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
+          setPicked(location);
+          setHasGpsPermission(true);
+          const elapsed = ((Date.now() - locStart) / 1000).toFixed(2);
+          console.log(`⏱️ [定位] 使用最後已知位置，耗時 ${elapsed}s`);
+          return location;
+        }
+      } catch {
+        // 靜默失敗，繼續嘗試 getCurrentPositionAsync
+      }
+
+      // 方法 2: 獲取當前位置
+      try {
+        const pos = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
           timeInterval: 5000,
           distanceInterval: 0,
         });
         const location = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
         setPicked(location);
-        setHasGpsPermission(true); // 確認GPS可用
+        setHasGpsPermission(true);
+        const elapsed = ((Date.now() - locStart) / 1000).toFixed(2);
+        console.log(`⏱️ [定位] GPS 定位成功，耗時 ${elapsed}s`);
         return location;
       } catch (error) {
-        // GPS權限已授予，但無法獲取位置（可能在室內或GPS訊號弱）
-        console.log('無法獲取GPS位置:', error);
-        setHasGpsPermission(false); // 標記為GPS不可用
+        const elapsed = ((Date.now() - locStart) / 1000).toFixed(2);
+        console.log(`⏱️ [定位] 無法獲取位置，耗時 ${elapsed}s:`, error);
+        setHasGpsPermission(false);
         return null;
       }
     } catch {
@@ -571,6 +591,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
       // 提取 GPS - 方法 1: 本地提取
       let gpsData: { latitude: number; longitude: number } | null = null;
       let exif_datetime: string | null = null;
+      const gpsCheckStart = Date.now();
 
       const localResult = await checkPhotoGPS(uri, undefined);
       if (localResult.hasGPS && localResult.gps) {
@@ -583,28 +604,10 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         console.log(`📂 ${fileName} - 本地提取時間: ${exif_datetime}`);
       }
 
-      // 方法 2: 後端提取（僅在本地提取失敗時使用）
-      if (!gpsData || !exif_datetime) {
-        console.log(`📂 ${fileName} - 本地資料不完整，嘗試後端提取...`);
-        try {
-          const backendResult = await extractExifFromPhoto(uri);
-          // 如果本地沒有 GPS，使用後端的 GPS
-          if (!gpsData && backendResult.success && backendResult.gps_extracted) {
-            gpsData = {
-              latitude: backendResult.latitude!,
-              longitude: backendResult.longitude!,
-            };
-            console.log(`📂 ${fileName} - 後端提取 GPS:`, gpsData);
-          }
-          // 如果本地沒有時間，使用後端的時間
-          if (!exif_datetime && backendResult.photo_taken_at) {
-            exif_datetime = backendResult.photo_taken_at;
-            console.log(`📂 ${fileName} - 後端提取時間: ${exif_datetime}`);
-          }
-        } catch (e) {
-          console.log(`📂 ${fileName} - 後端提取失敗:`, e);
-        }
-      }
+      // 本地提取已完成（file-parse + media-library 並行），不再調用後端 API
+      // 二進制 EXIF 解析器已涵蓋所有格式，後端 API 僅增加 60s 延遲而無益處
+      const gpsCheckElapsed = ((Date.now() - gpsCheckStart) / 1000).toFixed(2);
+      console.log(`⏱️ [總計] ${fileName} GPS 檢查完成，耗時 ${gpsCheckElapsed}s，GPS: ${gpsData ? '✅' : '❌'}，時間: ${exif_datetime ? '✅' : '❌'}`);
 
       // 創建臨時照片對象，顯示預覽
       const previewPhoto: LocalPhoto = {
