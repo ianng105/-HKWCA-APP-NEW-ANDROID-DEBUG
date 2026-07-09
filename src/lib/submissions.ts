@@ -7,6 +7,7 @@ export type Submission = {
   period?: string | null;
   pond_id?: string | null;
   file_url: string;
+  storage_path?: string | null;
   submission_timestamp: string;
   latitude?: number | null;
   longitude?: number | null;

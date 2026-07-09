@@ -134,7 +134,7 @@ export function RecordsScreen({ route }: Props) {
 
   const openDetail = (s: Submission) => {
     navigation.navigate('SubmissionDetail', {
-      id: s.batch_id ? undefined : s.id,
+      id: s.id,
       batchId: s.batch_id || undefined,
       category: mode === 'bird' ? '雀鳥相片' : '魚塘相片'
     });

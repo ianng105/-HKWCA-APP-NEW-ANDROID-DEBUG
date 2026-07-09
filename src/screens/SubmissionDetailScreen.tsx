@@ -9,6 +9,7 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 import { StatusBadge } from '../components/StatusBadge';
 import { FixedTabBar } from '../components/FixedTabBar';
 import { fetchSubmissionDetail, fetchBirdSubmissionDetail, type Submission } from '../lib/submissions';
+import { getSignedUrl, resolveOne, cancelAllPending } from '../lib/imageCache';
 import { useAuth } from '../contexts/AuthContext';
 import { handleAuthError } from '../lib/autoReSignIn';
 
@@ -41,7 +42,9 @@ function fmtDate(iso: string) {
 }
 
 // 格式化 EXIF 時間
-// 策略：如果時間串包含 Z（UTC），則保持 UTC 並直接顯示；否則視為本地時間
+// 策略：始終以本地時間顯示（香港時區 UTC+8）
+// EXIF 時間沒有時區信息，代表拍攝地的本地時間
+// 伺服器可能以 UTC 儲存，但顯示時必須還原為本地時間
 function fmtExifDate(exifDatetime: string | null | undefined): string {
   if (!exifDatetime) return '';
 
@@ -49,11 +52,12 @@ function fmtExifDate(exifDatetime: string | null | undefined): string {
     // EXIF 格式可能是：
     // - "2024-01-15T14:30:00" (ISO 本地時間，無時區)
     // - "2024-01-15T14:30:00Z" (ISO UTC 時間)
+    // - "2024-01-15T14:30:00+00" (ISO 帶時區偏移)
     // - "2024:01:15 14:30:00" (EXIF 標準格式，本地時間)
 
     let d: Date;
     if (exifDatetime.includes('T')) {
-      // ISO 格式
+      // ISO 格式 — Date 建構函數會自動解析時區（Z, +00:00, 或無時區）
       d = new Date(exifDatetime);
     } else if (exifDatetime.includes(':') && exifDatetime.includes(' ')) {
       // EXIF 格式 "2024:01:15 14:30:00" - 這是本地時間
@@ -80,13 +84,12 @@ function fmtExifDate(exifDatetime: string | null | undefined): string {
 
     if (isNaN(d.getTime())) return exifDatetime;
 
-    // 如果時間串是 UTC（帶 Z），使用 UTC 方法；否則使用本地方法
-    const isUtc = exifDatetime.endsWith('Z');
-    const yyyy = isUtc ? d.getUTCFullYear() : d.getFullYear();
-    const mm = isUtc ? String(d.getUTCMonth() + 1) : String(d.getMonth() + 1);
-    const dd = isUtc ? String(d.getUTCDate()) : String(d.getDate());
-    const hh = isUtc ? String(d.getUTCHours()) : String(d.getHours());
-    const mi = isUtc ? String(d.getUTCMinutes()) : String(d.getMinutes());
+    // 始終使用本地時間方法顯示（香港用戶看到的是本地時間）
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1);
+    const dd = String(d.getDate());
+    const hh = String(d.getHours());
+    const mi = String(d.getMinutes());
 
     return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')} ${hh.padStart(2, '0')}:${mi.padStart(2, '0')}`;
   } catch (error) {
@@ -204,11 +207,15 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
     const load = async () => {
       setIsLoading(true);
       setError(null);
+      // 取消所有其他待處理的圖片加載（來自圖庫畫面的批量加載）
+      cancelAllPending();
       // 根據 category 選擇正確的查詢函數
       const fetchFn = category === '雀鳥相片' ? fetchBirdSubmissionDetail : fetchSubmissionDetail;
       try {
         const data = await fetchFn({ id, batchId });
-        setItems(data || []);
+        // 如果有特定選中的 submission id，只顯示該圖片
+        const filtered = id && data ? data.filter(item => item.id === id) : data;
+        setItems(filtered || []);
       } catch (e: unknown) {
         const errorMsg = e instanceof Error ? e.message : '載入失敗';
         setError(errorMsg);
@@ -222,7 +229,8 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
             setError(null);
             try {
               const data = await fetchFn({ id, batchId });
-              setItems(data || []);
+              const filtered = id && data ? data.filter(item => item.id === id) : data;
+              setItems(filtered || []);
             } catch (retryError) {
               const retryErrorMsg = retryError instanceof Error ? retryError.message : '載入失敗';
               setError(retryErrorMsg);
@@ -256,8 +264,40 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
   const first = items[0];
 
   const photos = useMemo(
-    () => items.map((s) => ({ id: s.id, url: s.file_url })).filter((p) => !!p.url),
+    () => items.map((s) => ({
+      id: s.id,
+      url: getSignedUrl(s.id) || '',  // 先檢查緩存
+      file_url: s.file_url,
+      storage_path: s.storage_path,
+    })).filter((p) => !!p.file_url),
     [items]
+  );
+
+  // 只加載選中的圖片（第一張），跳過其他圖片
+  useEffect(() => {
+    if (photos.length === 0) return;
+    const selected = photos[0];
+
+    // 如果已緩存，直接顯示，不啟動任何加載
+    if (getSignedUrl(selected.id)) {
+      console.log(`🖼️ [Detail] 選中圖片已緩存，直接顯示: ${selected.id.substring(0, 8)}`);
+      return;
+    }
+
+    // 只加載選中的這一張圖片
+    console.log(`🖼️ [Detail] 只加載選中圖片: ${selected.id.substring(0, 8)}`);
+    resolveOne(selected).then(() => setTick(v => v + 1));
+  }, [photos]);
+
+  const [tick, setTick] = useState(0);
+  // 使用 tick 觸發 photos 重新計算
+  const displayPhotos = useMemo(
+    () => items.map((s) => ({
+      id: s.id,
+      url: getSignedUrl(s.id) || s.file_url,
+      file_url: s.file_url,
+    })).filter((p) => !!p.file_url),
+    [items, tick]
   );
 
   const statusBarHeight = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
@@ -318,7 +358,7 @@ export function SubmissionDetailScreen({ route, navigation }: Props) {
         <FlatList
         horizontal
         showsHorizontalScrollIndicator={false}
-        data={photos}
+        data={displayPhotos}
         keyExtractor={(p) => p.id}
         style={styles.carousel}
         contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}

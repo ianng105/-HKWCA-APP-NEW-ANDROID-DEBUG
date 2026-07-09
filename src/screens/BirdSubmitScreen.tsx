@@ -755,7 +755,7 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         const signal = abortControllerRef.current?.signal;
 
         // Step 1: 獲取上傳 URL（Edge Function 回傳直接 POST URL）
-        console.log(`📋 [Step 1/3] 獲取上傳 URL... (owner: ${user?.owner_id}, file: ${filename})`);
+        console.log(`📋 [Step 1/3] 獲取上傳 URL... (owner_id: ${user?.owner_id}, owner_uuid: ${user?.owner_uuid}, file: ${filename})`);
         const urlResult = await getSignedUploadUrl(
           user?.owner_id ?? '',
           filename,
@@ -763,16 +763,16 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
           signal,
         );
 
-        if (!urlResult.success || !urlResult.signed_url || !urlResult.storage_path) {
+        if (!urlResult.success || !urlResult.upload_url || !urlResult.storage_path) {
           throw new Error(`[步驟1] 獲取上傳 URL 失敗: ${urlResult.error || '未知錯誤'}`);
         }
         storagePath = urlResult.storage_path;
-        console.log(`✅ [Step 1/3] 上傳 URL 獲取成功`);
+        console.log(`✅ [Step 1/3] 上傳 URL 獲取成功 (method: ${urlResult.method || 'POST'})`);
 
         // Step 2: 直接 POST 上傳到 Storage
         console.log(`📤 [Step 2/3] POST 上傳到 Storage... (${p.uri})`);
         const uploadResult = await uploadFileToStorage(
-          urlResult.signed_url,
+          urlResult.upload_url,
           p.uri,
           'image/jpeg',
           signal,
@@ -785,8 +785,16 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
 
         console.log('GPS位置:', '上傳位置:', uploadLoc, 'EXIF:', p.exifGps, 'EXIF時間:', p.exif_datetime);
 
+        // 將 EXIF 本地時間轉換為 UTC ISO 格式（加上 Z 後綴）
+        // EXIF 時間沒有時區信息，代表拍攝地的本地時間（香港 UTC+8）
+        // 必須轉換為 UTC 後再發送給伺服器，否則 PostgreSQL 會誤解為 UTC 時間
+        const exifDatetimeUtc = p.exif_datetime
+          ? new Date(p.exif_datetime).toISOString()
+          : undefined;
+
         const body: Record<string, unknown> = {
-          owner_id: user?.owner_id ?? '',  // 短 ID (如 F001)，後端 Edge Function 需要
+          owner_id: user?.owner_id ?? '',  // 短 ID (如 F001)，向後兼容
+          owner_uuid: user?.owner_uuid ?? '',  // UUID (owners.id)，用於 bird_submissions 表的 RLS 匹配
           filename,
           pond_id: selectedPond?.pond_id ?? undefined,  // 魚塘編號 (如 R01)
           pond_uuid: selectedPondUuid ?? undefined,      // 魚塘 UUID
@@ -796,12 +804,12 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
           // EXIF 數據（客戶端提取）
           exif_latitude: p.exifGps?.latitude != null && !isNaN(Number(p.exifGps.latitude)) ? Number(p.exifGps.latitude) : undefined,
           exif_longitude: p.exifGps?.longitude != null && !isNaN(Number(p.exifGps.longitude)) ? Number(p.exifGps.longitude) : undefined,
-          exif_datetime: p.exif_datetime ?? undefined,
+          exif_datetime: exifDatetimeUtc,
           // 上傳位置（客戶端裝置 GPS）
           upload_latitude: uploadLoc?.latitude != null && !isNaN(Number(uploadLoc.latitude)) ? Number(uploadLoc.latitude) : undefined,
           upload_longitude: uploadLoc?.longitude != null && !isNaN(Number(uploadLoc.longitude)) ? Number(uploadLoc.longitude) : undefined,
           // 時間戳
-          photo_taken_at: p.exif_datetime && new Date(p.exif_datetime).getTime() <= Date.now() ? p.exif_datetime : timestamp,
+          photo_taken_at: exifDatetimeUtc || timestamp,
           submission_timestamp: timestamp,
         };
 
@@ -810,10 +818,10 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         }
 
         Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
-        console.log('提交數據:', JSON.stringify({ ...body, file_base64: '[base64...]', storage_path: body.storage_path }));
+        console.log(`📝 [Step 3/3] 提交數據 (owner_id=${body.owner_id}, owner_uuid=${body.owner_uuid}):`, JSON.stringify({ ...body, storage_path: body.storage_path }));
 
         // Step 3: 提交記錄到後端
-        console.log(`📝 [Step 3/3] 提交記錄到後端...`);
+        console.log(`📝 [Step 3/3] 提交記錄到後端 (endpoint: /app-submit-bird-photo)...`);
         await functionsFetch<unknown>('/app-submit-bird-photo', {
           method: 'POST',
           body,

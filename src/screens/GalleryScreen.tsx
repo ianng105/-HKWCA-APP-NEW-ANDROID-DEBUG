@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StatusBar, StyleSheet, Text, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { fetchSubmissions, softDeleteSubmission, softDeleteBirdSubmission, type Submission, type SubmissionCategory } from '../lib/submissions';
+import { getSignedUrl, resolveBatch, subscribe } from '../lib/imageCache';
 import type { AppMode, MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Gallery'>;
@@ -50,6 +51,7 @@ export function GalleryScreen({ route }: Props) {
   const [mode, setMode] = useState<AppMode>(route.params?.type ?? 'fish');
   const [isLoading, setIsLoading] = useState(true);
   const [items, setItems] = useState<Submission[]>([]);
+  const [, setTick] = useState(0);
   const [pondFilter, setPondFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [pondModalVisible, setPondModalVisible] = useState(false);
@@ -64,6 +66,9 @@ export function GalleryScreen({ route }: Props) {
       try {
         const data = await fetchSubmissions({ category, pondFilter, periodFilter });
         setItems(data || []);
+        if (data && data.length > 0) {
+          resolveBatch(data);
+        }
       } catch (e: unknown) {
         const errorMsg = e instanceof Error ? e.message : '載入失敗';
         console.error('載入照片失敗:', errorMsg);
@@ -76,6 +81,11 @@ export function GalleryScreen({ route }: Props) {
     };
     void load();
   }, [category, pondFilter, periodFilter, signOut]);
+
+  // 訂閱緩存更新 → re-render
+  useEffect(() => {
+    return subscribe(() => setTick(v => v + 1));
+  }, []);
 
   useEffect(() => {
     // 外部從首頁切換 type 時同步
@@ -90,7 +100,7 @@ export function GalleryScreen({ route }: Props) {
 
   const openDetail = (s: Submission) => {
     navigation.navigate('SubmissionDetail', {
-      id: s.batch_id ? undefined : s.id,
+      id: s.id,
       batchId: s.batch_id || undefined,
       category: mode === 'bird' ? '雀鳥相片' : '魚塘相片'
     });
@@ -196,7 +206,7 @@ export function GalleryScreen({ route }: Props) {
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => openDetail(item)}>
-              <Image source={{ uri: item.file_url }} style={styles.thumb} />
+              <Image source={{ uri: getSignedUrl(item.id) || item.file_url }} style={styles.thumb} />
 
               <View style={styles.cardBody}>
                 <View style={styles.rowBetween}>

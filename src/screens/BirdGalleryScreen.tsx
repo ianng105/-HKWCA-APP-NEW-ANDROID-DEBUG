@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { FixedTabBar } from '../components/FixedTabBar';
 import { fetchSubmissions, softDeleteBirdSubmission, type Submission, type SubmissionCategory } from '../lib/submissions';
+import { getSignedUrl, resolveBatch, subscribe } from '../lib/imageCache';
 import { handleAuthError } from '../lib/autoReSignIn';
 import type { AppMode, MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
@@ -58,6 +59,7 @@ export function BirdGalleryScreen({ route }: Props) {
   const [mode, setMode] = useState<AppMode>('bird');
   const [isLoading, setIsLoading] = useState(true);
   const [items, setItems] = useState<Submission[]>([]);
+  const [, setTick] = useState(0);
   const [pondFilter, setPondFilter] = useState<string>(initialPondId);
   const [periodFilter, setPeriodFilter] = useState<string>(initialPeriodId);
   const [startDate, setStartDate] = useState<string>('');
@@ -109,6 +111,9 @@ export function BirdGalleryScreen({ route }: Props) {
           }
 
           setItems(data || []);
+          if (data && data.length > 0) {
+            resolveBatch(data);
+          }
         } catch (e: unknown) {
           await handleAuthError(e, autoReSignIn, signOut, async () => {
             const data = await fetchSubmissions({
@@ -118,6 +123,9 @@ export function BirdGalleryScreen({ route }: Props) {
               ownerFilter: user?.owner_uuid
             });
             setItems(data || []);
+            if (data && data.length > 0) {
+              resolveBatch(data);
+            }
           });
         } finally {
           setIsLoading(false);
@@ -127,8 +135,13 @@ export function BirdGalleryScreen({ route }: Props) {
     }, [category, pondFilter, periodFilter, startDate, endDate, user?.owner_uuid, signOut])
   );
 
+  // 訂閱緩存更新 → re-render
+  useEffect(() => {
+    return subscribe(() => setTick(v => v + 1));
+  }, []);
+
   const openDetail = (s: Submission) => {
-    navigation.navigate('SubmissionDetail', { id: s.batch_id ? undefined : s.id, batchId: s.batch_id || undefined, category: '雀鳥相片' });
+    navigation.navigate('SubmissionDetail', { id: s.id, batchId: s.batch_id || undefined, category: '雀鳥相片' });
   };
 
   const refreshData = async () => {
@@ -160,12 +173,15 @@ export function BirdGalleryScreen({ route }: Props) {
       }
       
       setItems(data || []);
+      if (data && data.length > 0) {
+        resolveBatch(data);
+      }
     } catch (e: unknown) {
       await handleAuthError(e, autoReSignIn, signOut, async () => {
-        const data = await fetchSubmissions({ 
-          category, 
-          pondFilter: pondFilter === 'all' ? undefined : pondFilter, 
-          periodFilter: periodFilter === 'all' ? undefined : periodFilter 
+        const data = await fetchSubmissions({
+          category,
+          pondFilter: pondFilter === 'all' ? undefined : pondFilter,
+          periodFilter: periodFilter === 'all' ? undefined : periodFilter
         });
         setItems(data || []);
       });
@@ -304,7 +320,7 @@ export function BirdGalleryScreen({ route }: Props) {
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => openDetail(item)}>
               <View style={styles.imageContainer}>
-                {item.file_url ? <Image source={{ uri: item.file_url }} style={styles.thumb} /> : <View style={[styles.thumb, { backgroundColor: '#E5E7EB' }]} />}
+                {item.file_url ? <Image source={{ uri: getSignedUrl(item.id) || item.file_url }} style={styles.thumb} /> : <View style={[styles.thumb, { backgroundColor: '#E5E7EB' }]} />}
                 
 
               </View>

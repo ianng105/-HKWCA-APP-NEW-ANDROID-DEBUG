@@ -242,12 +242,14 @@ export async function apiFetch<T>(
 export { API_BASE_URL, API_KEY };
 
 /**
- * 獲取簽名上傳 URL（用於大文件上傳）
+ * 獲取上傳 URL（直接 POST 到 Storage）
  */
 export interface SignedUploadUrlResponse {
   success: boolean;
-  signed_url?: string;
+  method?: string;       // POST
+  upload_url?: string;   // 直接 upload URL
   storage_path?: string;
+  signed_url?: string;   // 向後兼容（舊版簽名 URL）
   token?: string;
   error?: string;
 }
@@ -268,9 +270,10 @@ export async function getSignedUploadUrl(
       },
       signal,
     });
+    console.log(`📋 [get-upload-url] response: method=${result.method}, storage_path=${result.storage_path}`);
     return result;
   } catch (error) {
-    console.error('❌ [API] 獲取簽名上傳 URL 失敗:', error);
+    console.error('❌ [API] 獲取上傳 URL 失敗:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -295,16 +298,27 @@ export async function uploadFileToStorage(
 
     const fileSize = 'size' in fileInfo ? fileInfo.size : 0;
     console.log(`📁 [Upload] 文件大小: ${fileSize} bytes`);
-    console.log(`📁 [Upload] 上傳 URL: ${uploadUrl.substring(0, 120)}...`);
+    console.log(`📁 [Upload] 上傳 URL: ${uploadUrl}`);
 
-    // 使用 expo-file-system 的 uploadAsync
-    // 注意：Supabase signed URL 已包含 token，不需要額外 auth headers
+    // 使用 POST 直接上傳到 Storage（需要 Authorization + apikey headers）
+    const accessToken = getAccessToken();
+    const uploadHeaders: Record<string, string> = {
+      'Content-Type': contentType,
+    };
+    if (API_KEY) {
+      uploadHeaders['apikey'] = API_KEY;
+    }
+    if (accessToken) {
+      uploadHeaders['Authorization'] = `Bearer ${accessToken}`;
+      console.log(`📁 [Upload] 使用 JWT token + apikey 認證 (POST)`);
+    } else {
+      console.log(`📁 [Upload] 無 JWT token，使用 apikey 上傳`);
+    }
+
     const result = await FileSystem.uploadAsync(uploadUrl, fileUri, {
-      httpMethod: 'PUT',
+      httpMethod: 'POST',
       uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-      headers: {
-        'Content-Type': contentType,
-      },
+      headers: uploadHeaders,
     });
 
     console.log(`📁 [Upload] 回應狀態: ${result.status}`);
@@ -320,5 +334,37 @@ export async function uploadFileToStorage(
   } catch (error) {
     console.error('❌ [Upload] 上傳異常:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
+ * 獲取 submission 圖片的簽名 URL（透過 Edge Function 驗證擁有權後生成短期簽名 URL）
+ */
+export interface SubmissionImageUrlResponse {
+  success: boolean;
+  signed_url?: string;
+  error?: string;
+}
+
+export async function getSubmissionImageUrl(
+  storagePath: string,
+  expiresIn: number = 300,
+): Promise<string | null> {
+  try {
+    const result = await functionsFetch<SubmissionImageUrlResponse>('/get-submission-image-url', {
+      method: 'POST',
+      body: { storage_path: storagePath, expires_in: expiresIn },
+    });
+    if (result.success && result.signed_url) {
+      console.log(`🖼️ [Image] 簽名 URL 獲取成功:`);
+      console.log(`  storage_path: ${storagePath}`);
+      console.log(`  signed_url: ${result.signed_url}`);
+      return result.signed_url;
+    }
+    console.warn(`⚠️ [Image] 簽名 URL 獲取失敗: ${result.error}`);
+    return null;
+  } catch (error) {
+    console.error('❌ [Image] 獲取簽名 URL 異常:', error);
+    return null;
   }
 }

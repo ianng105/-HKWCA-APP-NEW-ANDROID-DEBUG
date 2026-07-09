@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { FixedTabBar } from '../components/FixedTabBar';
 import { fetchSubmissions, type Submission, type SubmissionCategory } from '../lib/submissions';
+import { getSignedUrl, resolveBatch, subscribe } from '../lib/imageCache';
 import { handleAuthError } from '../lib/autoReSignIn';
 import type { AppMode, MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
@@ -58,6 +59,7 @@ export function FishGalleryScreen({ route }: Props) {
   const [mode, setMode] = useState<AppMode>('fish');
   const [isLoading, setIsLoading] = useState(true);
   const [items, setItems] = useState<Submission[]>([]);
+  const [, setTick] = useState(0); // trigger re-render when cache updates
   const [pondFilter, setPondFilter] = useState<string>(initialPondId);
   const [periodFilter, setPeriodFilter] = useState<string>(initialPeriodId);
   const [startDate, setStartDate] = useState<string>('');
@@ -108,6 +110,7 @@ export function FishGalleryScreen({ route }: Props) {
           }
 
           setItems(data || []);
+          if (data && data.length > 0) resolveBatch(data);
         } catch (e: unknown) {
           await handleAuthError(e, autoReSignIn, signOut, async () => {
             const data = await fetchSubmissions({
@@ -117,6 +120,7 @@ export function FishGalleryScreen({ route }: Props) {
               ownerFilter: user?.owner_uuid
             });
             setItems(data || []);
+            if (data && data.length > 0) resolveBatch(data);
           });
         } finally {
           setIsLoading(false);
@@ -126,9 +130,14 @@ export function FishGalleryScreen({ route }: Props) {
     }, [category, pondFilter, periodFilter, startDate, endDate, user?.owner_uuid, signOut])
   );
 
+  // 訂閱緩存更新 → re-render
+  useEffect(() => {
+    return subscribe(() => setTick(v => v + 1));
+  }, []);
+
   const openDetail = (s: Submission) => {
     navigation.navigate('SubmissionDetail', {
-      id: s.batch_id ? undefined : s.id,
+      id: s.id,
       batchId: s.batch_id || undefined,
       category: mode === 'bird' ? '雀鳥相片' : '魚塘相片'
     });
@@ -260,7 +269,7 @@ export function FishGalleryScreen({ route }: Props) {
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => openDetail(item)}>
               <View style={styles.imageContainer}>
-                {item.file_url ? <Image source={{ uri: item.file_url }} style={styles.thumb} /> : <View style={[styles.thumb, { backgroundColor: '#E5E7EB' }]} />}
+                {item.file_url ? <Image source={{ uri: getSignedUrl(item.id) || item.file_url }} style={styles.thumb} /> : <View style={[styles.thumb, { backgroundColor: '#E5E7EB' }]} />}
               </View>
 
               <View style={styles.cardBody}>
