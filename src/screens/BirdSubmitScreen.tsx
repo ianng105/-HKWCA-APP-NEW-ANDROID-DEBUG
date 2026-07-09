@@ -94,14 +94,34 @@ function formatCoord(loc?: PickedLocation | null) {
 }
 
 async function fetchSubmittedPeriods(options: { pondUuid: string; category: string }): Promise<string[]> {
+  // 方法 1: 嘗試 Edge Function
   try {
     const data = await functionsFetch<{ success: boolean; submitted_periods: string[] }>(
       '/get-submitted-periods',
       { body: { pond_uuid: options.pondUuid, category: options.category } },
     );
-    return data.submitted_periods ?? [];
-  } catch {
-    return [];
+    if (data.success && data.submitted_periods && data.submitted_periods.length > 0) {
+      console.log(`✅ [已提交階段] Edge Function 返回: ${data.submitted_periods.join(', ')}`);
+      return data.submitted_periods;
+    }
+    console.log(`📋 [已提交階段] Edge Function 返回空結果 (success=${data.success}, count=${data.submitted_periods?.length || 0})，嘗試 REST API 備用`);
+  } catch (e) {
+    console.log(`⚠️ [已提交階段] Edge Function 失敗: ${e instanceof Error ? e.message : '未知錯誤'}，嘗試 REST API 備用`);
+  }
+
+  // 方法 2: REST API 備用查詢（直接查詢 submissions / bird_submissions 表）
+  try {
+    const table = options.category === '雀鳥相片' ? 'bird_submissions' : 'submissions';
+    const periodField = options.category === '雀鳥相片' ? 'rainfall_phase' : 'period';
+
+    const q = `/${table}?select=${periodField}&pond_id=eq.${encodeURIComponent(options.pondUuid)}&is_deleted=eq.false&limit=50`;
+    const rows = await restFetch<Array<Record<string, any>>>(q);
+    const periods = [...new Set((rows || []).map((r: Record<string, any>) => r[periodField]).filter(Boolean))] as string[];
+    console.log(`✅ [已提交階段] REST API 查詢 ${table} 返回: ${periods.join(', ') || '無'}`);
+    return periods;
+  } catch (e2) {
+    console.error(`❌ [已提交階段] REST API 備用也失敗: ${e2 instanceof Error ? e2.message : '未知錯誤'}`);
+    throw e2; // 拋出錯誤讓外層 useEffect 保留現有資料
   }
 }
 
@@ -261,8 +281,8 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
         const data = await fetchSubmittedPeriods({ pondUuid: selectedPondUuid, category });
         setSubmittedPeriods(data);
       } catch {
-        // 不阻塞使用者提交流程
-        setSubmittedPeriods([]);
+        // 載入失敗時保留現有資料，不清空（避免已提交的階段按鈕被錯誤啟用）
+        console.log('⚠️ 載入已提交階段失敗，保留現有資料');
       }
     };
     void load();
@@ -666,7 +686,11 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
   };
 
   const handleSelectPeriod = (periodId: string) => {
-    if (submittedPeriods.includes(periodId)) return;
+    if (submittedPeriods.includes(periodId)) {
+      const periodLabel = periods.find((p) => p.id === periodId)?.label?.replace(/\n/g, '') || periodId;
+      Alert.alert('已提交', `「${periodLabel}」階段已提交過相片，無法再次選擇`);
+      return;
+    }
     setSelectedPeriod(periodId);
   };
 
@@ -1484,11 +1508,19 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
               ]}
               onPress={async () => {
                 if (hasGpsPermission === true) {
+                  console.log(`📋 [降水階段] 進入階段選擇頁面`);
+                  console.log(`  魚塘: ${selectedPond?.pond_id || '未知'}`);
+                  console.log(`  已提交階段: ${submittedPeriods.length > 0 ? submittedPeriods.map(id => periods.find(p => p.id === id)?.label?.replace(/\n/g, '') || id).join(', ') : '無'}`);
+                  console.log(`  已提交階段ID: ${submittedPeriods.length > 0 ? submittedPeriods.join(', ') : '無'}`);
                   setCurrentPage(2);
                 } else {
                   // 嘗試重新獲取GPS
                   const location = await getCurrentLocation();
                   if (location) {
+                    console.log(`📋 [降水階段] 進入階段選擇頁面（GPS重新獲取成功）`);
+                    console.log(`  魚塘: ${selectedPond?.pond_id || '未知'}`);
+                    console.log(`  已提交階段: ${submittedPeriods.length > 0 ? submittedPeriods.map(id => periods.find(p => p.id === id)?.label?.replace(/\n/g, '') || id).join(', ') : '無'}`);
+                    console.log(`  已提交階段ID: ${submittedPeriods.length > 0 ? submittedPeriods.join(', ') : '無'}`);
                     setCurrentPage(2);
                   } else {
                     Alert.alert('無GPS訊號', '請確保GPS已開啟且訊號良好，或移動到空曠位置再試');
@@ -1553,7 +1585,6 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                       { backgroundColor: submittedPeriods.includes('before_drawdown') ? '#F3F4F6' : '#89C2D9' },
                     ]}
                     onPress={() => handleSelectPeriod('before_drawdown')}
-                    disabled={submittedPeriods.includes('before_drawdown')}
                   >
                     <Text style={[styles.flowButtonText, submittedPeriods.includes('before_drawdown') && styles.flowButtonTextSubmitted]}>
                       降水前
@@ -1575,7 +1606,6 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                         { backgroundColor: submittedPeriods.includes('after_basic_day1') ? '#F3F4F6' : '#C2F6F4' },
                       ]}
                       onPress={() => handleSelectPeriod('after_basic_day1')}
-                      disabled={submittedPeriods.includes('after_basic_day1')}
                     >
                       <Text style={[styles.flowButtonText, submittedPeriods.includes('after_basic_day1') && styles.flowButtonTextSubmitted]}>
                         基本{'\n'}降水後{'\n'}第1天
@@ -1590,7 +1620,6 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                         { backgroundColor: submittedPeriods.includes('after_basic_day7') ? '#F3F4F6' : '#C2F6F4' },
                       ]}
                       onPress={() => handleSelectPeriod('after_basic_day7')}
-                      disabled={submittedPeriods.includes('after_basic_day7')}
                     >
                       <Text style={[styles.flowButtonText, submittedPeriods.includes('after_basic_day7') && styles.flowButtonTextSubmitted]}>
                         基本{'\n'}降水後{'\n'}第7天
@@ -1611,7 +1640,6 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                         { backgroundColor: submittedPeriods.includes('after_drying_day1') ? '#F3F4F6' : '#9DD4D1' },
                       ]}
                       onPress={() => handleSelectPeriod('after_drying_day1')}
-                      disabled={submittedPeriods.includes('after_drying_day1')}
                     >
                       <Text style={[styles.flowButtonText, submittedPeriods.includes('after_drying_day1') && styles.flowButtonTextSubmitted]}>
                         乾塘後{'\n'}第1天{'\n'}
@@ -1626,7 +1654,6 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                         { backgroundColor: submittedPeriods.includes('after_drying_day7') ? '#F3F4F6' : '#9DD4D1' },
                       ]}
                       onPress={() => handleSelectPeriod('after_drying_day7')}
-                      disabled={submittedPeriods.includes('after_drying_day7')}
                     >
                       <Text style={[styles.flowButtonText, submittedPeriods.includes('after_drying_day7') && styles.flowButtonTextSubmitted]}>
                         乾塘後{'\n'}第7天{'\n'}
@@ -1642,11 +1669,12 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                   style={[
                     styles.birdPeriodButton,
                     selectedPeriod === 'after_basic' && styles.birdPeriodButtonSelected,
-                    { backgroundColor: '#C2F6F4' },
+                    submittedPeriods.includes('after_basic') && styles.flowButtonSubmitted,
+                    { backgroundColor: submittedPeriods.includes('after_basic') ? '#F3F4F6' : '#C2F6F4' },
                   ]}
                   onPress={() => handleSelectPeriod('after_basic')}
                 >
-                  <Text style={[styles.birdPeriodButtonText, selectedPeriod === 'after_basic' && styles.birdPeriodButtonTextSelected]}>
+                  <Text style={[styles.birdPeriodButtonText, selectedPeriod === 'after_basic' && styles.birdPeriodButtonTextSelected, submittedPeriods.includes('after_basic') && styles.flowButtonTextSubmitted]}>
                     基本降水後
                   </Text>
                 </Pressable>
@@ -1655,11 +1683,12 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                   style={[
                     styles.birdPeriodButton,
                     selectedPeriod === 'after_drying' && styles.birdPeriodButtonSelected,
-                    { backgroundColor: '#9DD4D1' },
+                    submittedPeriods.includes('after_drying') && styles.flowButtonSubmitted,
+                    { backgroundColor: submittedPeriods.includes('after_drying') ? '#F3F4F6' : '#9DD4D1' },
                   ]}
                   onPress={() => handleSelectPeriod('after_drying')}
                 >
-                  <Text style={[styles.birdPeriodButtonText, selectedPeriod === 'after_drying' && styles.birdPeriodButtonTextSelected]}>
+                  <Text style={[styles.birdPeriodButtonText, selectedPeriod === 'after_drying' && styles.birdPeriodButtonTextSelected, submittedPeriods.includes('after_drying') && styles.flowButtonTextSubmitted]}>
                     乾塘後
                   </Text>
                 </Pressable>
@@ -1668,26 +1697,17 @@ export function BirdSubmitScreen({ navigation, route }: Props) {
                   style={[
                     styles.birdPeriodButton,
                     selectedPeriod === 'non_drawdown_drying' && styles.birdPeriodButtonSelected,
-                    { backgroundColor: '#89C2D9' },
+                    submittedPeriods.includes('non_drawdown_drying') && styles.flowButtonSubmitted,
+                    { backgroundColor: submittedPeriods.includes('non_drawdown_drying') ? '#F3F4F6' : '#89C2D9' },
                   ]}
                   onPress={() => handleSelectPeriod('non_drawdown_drying')}
                 >
-                  <Text style={[styles.birdPeriodButtonText, selectedPeriod === 'non_drawdown_drying' && styles.birdPeriodButtonTextSelected]}>
+                  <Text style={[styles.birdPeriodButtonText, selectedPeriod === 'non_drawdown_drying' && styles.birdPeriodButtonTextSelected, submittedPeriods.includes('non_drawdown_drying') && styles.flowButtonTextSubmitted]}>
                     非降水／乾塘時
                   </Text>
                 </Pressable>
               </View>
             )}
-
-            {submittedPeriods.length > 0 ? (
-              <Text style={styles.helper}>
-                已提交階段：
-                {submittedPeriods
-                  .map((id) => periods.find((p) => p.id === id)?.label)
-                  .filter(Boolean)
-                  .join('、')}
-              </Text>
-            ) : null}
 
             {/* 第2頁：下一步按鈕（長期顯示，未選擇時禁用） */}
             <Pressable 
