@@ -515,7 +515,10 @@ export function FishSubmitScreen({ navigation, route }: Props) {
 
       if (isIOS) {
         // iOS: 使用 ImagePicker（更穩定）
-        console.log('📂 iOS: 檢查相片庫權限...');
+        console.log('📸 ==========================================');
+        console.log('📸 [圖片處理開始]');
+        console.log(`📸 [1/7] 平台: iOS | 模式: ${category} | 魚塘: ${selectedPondUuid || '未選'}`);
+        console.log('📸 [1/7] 檢查相片庫權限...');
         
         // 先檢查當前權限狀態
         const { status: existingStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -570,18 +573,50 @@ export function FishSubmitScreen({ navigation, route }: Props) {
         fileName = asset.uri.split('/').pop() || `IMG_${now}.jpg`;
         // iOS: 獲取 assetId 用於重複檢查
         iosAssetId = (asset as any).assetId as string | undefined;
-        
+
+        // iOS: 將 ph:// URI 複製到本地緩存，因為 expo-file-system/legacy 無法直接讀取
+        // ph:// 是 Photos 框架的引用，必須先導出為 file:// URI 才能被 getInfoAsync / uploadAsync 使用
+        const localUri = `${FileSystem.cacheDirectory}picker_${now}_${Math.random().toString(36).substring(2, 8)}.jpg`;
+        try {
+          await FileSystem.copyAsync({ from: uri, to: localUri });
+          console.log('📂 iOS: 已將 ph:// 資產複製到本地緩存:', localUri);
+          uri = localUri;
+          fileName = `${now}.jpg`;
+        } catch (copyError) {
+          console.warn('📂 iOS: copyAsync 失敗，嘗試降級方式讀取:', copyError);
+          // 降級方案：透過 base64 讀寫來轉換 ph:// 為 file://
+          try {
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            await FileSystem.writeAsStringAsync(localUri, base64, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            console.log('📂 iOS: 已透過 base64 轉換到本地緩存:', localUri);
+            uri = localUri;
+            fileName = `${now}.jpg`;
+          } catch (fallbackError) {
+            console.error('📂 iOS: 無法讀取 ph:// 資產，上傳將失敗:', fallbackError);
+            // 保留原始 ph:// URI，讓後續步驟回報明確的錯誤
+          }
+        }
+
         console.log('📂 iOS: 完整 asset 數據:', JSON.stringify({
-          uri: asset.uri?.substring(0, 100),
+          原始uri: asset.uri?.substring(0, 100),
+          緩存uri: uri?.substring(0, 100),
           width: asset.width,
           height: asset.height,
           fileName: (asset as any).fileName,
           assetId: iosAssetId,
         }));
-        
-        console.log(`📂 iOS 選擇了照片: ${fileName}, assetId: ${iosAssetId}`);
+
+        console.log(`📸 [2/7] 檔案資訊: fileName="${fileName}", assetId=${iosAssetId || '無'}, uri=${uri?.substring(0, 80)}...`);
+        console.log(`📸 [2/7] 圖片尺寸: ${asset.width}x${asset.height}, 類型: ${(asset as any).type || '未知'}`);
       } else {
         // Android: 使用 DocumentPicker
+        console.log('📸 ==========================================');
+        console.log('📸 [圖片處理開始]');
+        console.log(`📸 [1/7] 平台: Android | 模式: ${category} | 魚塘: ${selectedPondUuid || '未選'}`);
         const res = await DocumentPicker.getDocumentAsync({
           type: ['image/*'],
           copyToCacheDirectory: true,
@@ -596,32 +631,33 @@ export function FishSubmitScreen({ navigation, route }: Props) {
         const asset = res.assets[0];
         uri = asset.uri;
         fileName = asset.name || `IMG_${now}.jpg`;
-        
+
+        console.log(`📸 [2/7] 檔案資訊: fileName="${fileName}", uri=${uri?.substring(0, 80)}..., mimeType="${asset.mimeType || '未知'}", size=${(asset as any).size || '未知'}bytes`);
         console.log(`📂 Android 選擇了照片: ${fileName}`);
       }
 
       // 檢查重複照片（使用異步版本更準確）
-      console.log('📂 >>> 開始調用 checkPhotoDuplicateAsync');
-      console.log('📂 >>> 傳入 photos:', photos.length, '張');
-      
+      const assetIdForDuplicateCheck = Platform.OS === 'ios' ? iosAssetId : '';
+      console.log(`📸 [3/7] 重複檢查: fileName="${fileName}", assetId="${assetIdForDuplicateCheck || '無'}", 已選照片=${photos.length}張`);
+      const checkStart = Date.now();
+
       let isDuplicate;
       try {
-        // iOS: 傳入 assetId 用於重複檢查（Android 傳空字符串）
-        const assetIdForDuplicateCheck = Platform.OS === 'ios' ? iosAssetId : '';
         isDuplicate = await checkPhotoDuplicateAsync(uri, fileName, assetIdForDuplicateCheck || '', photos);
-        console.log('📂 >>> checkPhotoDuplicateAsync 結果:', isDuplicate);
       } catch (err) {
-        console.error('📂 >>> checkPhotoDuplicateAsync 錯誤:', err);
+        console.error('📸 [3/7] checkPhotoDuplicateAsync 錯誤:', err);
         isDuplicate = false;
       }
-      
+
+      console.log(`📸 [3/7] 重複檢查結果: ${isDuplicate ? '❌ 重複' : '✅ 通過'} (耗時 ${((Date.now() - checkStart) / 1000).toFixed(2)}s)`);
+
       if (isDuplicate) {
-        console.log('📂 >>> 發現重複，阻止添加');
+        console.log(`📸 [中止] 圖片已存在於列表中，跳過`);
         Alert.alert('提示', '此相片已經選擇過，不能重複添加');
         return;
       }
-      
-      console.log('📂 >>> 未發現重複，繼續處理');
+
+      console.log(`📸 [4/7] 開始 GPS 提取: uri=${uri?.substring(0, 80)}...`);
 
       // 顯示「正在檢查位置」提示
       setIsCheckingLocation(true);
@@ -633,20 +669,21 @@ export function FishSubmitScreen({ navigation, route }: Props) {
       let gpsSource = 'local';
 
       const localResult = await checkPhotoGPS(uri, undefined);
+      console.log(`📸 [5/7] GPS 提取方法: checkedMethods=[${localResult.checkedMethods?.join(', ')}], hasGPS=${localResult.hasGPS}, reason=${localResult.reason || '無'}`);
       if (localResult.hasGPS && localResult.gps) {
         gpsData = localResult.gps;
-        console.log(`📂 ${fileName} - 本地提取 GPS:`, gpsData);
+        console.log(`📸 [5/7] GPS 提取成功: lat=${gpsData.latitude}, lon=${gpsData.longitude}`);
       }
       // 使用本地提取的 EXIF 時間
       if (localResult.datetime) {
         exif_datetime = localResult.datetime;
-        console.log(`📂 ${fileName} - 本地提取時間: ${exif_datetime}`);
+        console.log(`📸 [5/7] EXIF 時間: ${exif_datetime}`);
       }
 
       // 本地提取已完成（file-parse + media-library 並行），不再調用後端 API
       // 二進制 EXIF 解析器已涵蓋所有格式，後端 API 僅增加 60s 延遲而無益處
       const gpsCheckElapsed = ((Date.now() - gpsCheckStart) / 1000).toFixed(2);
-      console.log(`⏱️ [總計] ${fileName} GPS 檢查完成，耗時 ${gpsCheckElapsed}s，GPS: ${gpsData ? '✅' : '❌'}，時間: ${exif_datetime ? '✅' : '❌'}`);
+      console.log(`📸 [5/7] GPS 提取完成: 總耗時=${gpsCheckElapsed}s | GPS=${gpsData ? '✅' : '❌'} | EXIF時間=${exif_datetime ? '✅' : '❌'}`);
 
       // 創建臨時照片對象，顯示預覽
       const previewPhoto: LocalPhoto = {
@@ -659,14 +696,15 @@ export function FishSubmitScreen({ navigation, route }: Props) {
         assetId: iosAssetId, // iOS: 保存 assetId 用於重複檢查
       };
 
-      console.log('📂 創建預覽照片:', previewPhoto.id);
-      
+      console.log(`📸 [6/7] 預覽創建: id="${previewPhoto.id}", GPS=${previewPhoto.exifGps ? `(${previewPhoto.exifGps.latitude}, ${previewPhoto.exifGps.longitude})` : '使用當前位置'}`);
+
       // 關閉「正在檢查位置」提示
       setIsCheckingLocation(false);
-      
+
       // 顯示預覽
       setGalleryPreviewPhoto(previewPhoto);
-      console.log('📂 已調用 setGalleryPreviewPhoto');
+      console.log('📸 [7/7] 等待用戶確認 (預覽/取消)');
+      console.log('📸 [圖片處理完成] ==========================================');
 
     } catch (error: any) {
       // 發生錯誤時也要關閉提示
