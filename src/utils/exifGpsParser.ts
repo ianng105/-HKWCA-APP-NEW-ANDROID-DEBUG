@@ -364,7 +364,8 @@ async function tryReadFullFile(uri: string): Promise<{ latitude: number; longitu
  * - Android: 在 Expo Go 中經常無法讀取（Scoped Storage 限制）
  */
 export async function getGpsFromMediaLibrary(
-  uri: string
+  uri: string,
+  explicitAssetId?: string | null
 ): Promise<{ gps: GPSInfo | null; error?: string }> {
   try {
     const { status } = await MediaLibrary.requestPermissionsAsync();
@@ -372,21 +373,26 @@ export async function getGpsFromMediaLibrary(
       return { gps: null, error: 'MediaLibrary permission denied' };
     }
 
-    // 提取 Asset ID
-    let assetId: string | null = null;
-    
-    if (uri.startsWith('content://media/')) {
-      const match = uri.match(/\/(\d+)(?:\?|$)/);
-      if (match) assetId = match[1];
-    } else if (uri.startsWith('ph://')) {
-      const match = uri.match(/ph:\/\/([^/]+)/);
-      if (match) assetId = match[1];
+    // 提取 Asset ID：
+    // 1. 優先使用呼叫端提供的 assetId（iOS ImagePicker 直接提供 PHAsset localIdentifier，最可靠）
+    // 2. 否則從 URI 解析（Android content:// 或舊版 ph://）
+    let assetId: string | null = explicitAssetId ?? null;
+
+    if (!assetId) {
+      if (uri.startsWith('content://media/')) {
+        const match = uri.match(/\/(\d+)(?:\?|$)/);
+        if (match) assetId = match[1];
+      } else if (uri.startsWith('ph://')) {
+        const match = uri.match(/ph:\/\/([^/]+)/);
+        if (match) assetId = match[1];
+      }
     }
 
     if (!assetId) {
       return { gps: null, error: 'Cannot extract asset ID from URI' };
     }
 
+    console.log(`📍 [MediaLibrary] 使用 assetId 查詢位置: ${assetId}`);
     const assetInfo = await MediaLibrary.getAssetInfoAsync(assetId);
     
     if (assetInfo?.location) {
@@ -424,7 +430,8 @@ export async function getGpsFromMediaLibrary(
  */
 export async function checkPhotoGPS(
   uri: string,
-  exifObject?: Record<string, any> | null
+  exifObject?: Record<string, any> | null,
+  assetId?: string | null
 ): Promise<GPSCheckResult> {
   const startTime = Date.now();
   const checkedMethods: string[] = [];
@@ -459,7 +466,7 @@ export async function checkPhotoGPS(
   checkedMethods.push('media-library');
   const [fileResult, mediaResult] = await Promise.all([
     parseGpsFromFile(uri),
-    getGpsFromMediaLibrary(uri),
+    getGpsFromMediaLibrary(uri, assetId),
   ]);
 
   if (fileResult.gps) {
@@ -494,7 +501,9 @@ export async function checkPhotoGPS(
 
   if (mediaResult.error?.includes('permission')) {
     reason = 'no-permission';
-  } else if (fileResult.error) {
+  } else if (fileResult.error && !fileResult.error.includes('does not contain GPS')) {
+    // 只有真正無法讀取檔案時才算 file-access-error；
+    // 「檔案讀到了但沒有 GPS」屬於 not-found（正常情況，改用當前定位）
     reason = 'file-access-error';
   }
 

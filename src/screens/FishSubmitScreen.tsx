@@ -512,6 +512,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
       let uri: string;
       let fileName: string;
       let iosAssetId: string | undefined; // iOS: 用於重複檢查的 Asset ID
+      let iosExif: Record<string, any> | undefined; // iOS: ImagePicker 返回的原生 EXIF（含 GPS）
 
       if (isIOS) {
         // iOS: 使用 ImagePicker（更穩定）
@@ -573,6 +574,8 @@ export function FishSubmitScreen({ navigation, route }: Props) {
         fileName = asset.uri.split('/').pop() || `IMG_${now}.jpg`;
         // iOS: 獲取 assetId 用於重複檢查
         iosAssetId = (asset as any).assetId as string | undefined;
+        // iOS: 保存原生 EXIF（含 GPS），稍後直接傳給 checkPhotoGPS，避免依賴檔案讀取
+        iosExif = (asset as any).exif as Record<string, any> | undefined;
 
         // iOS: 將 ph:// URI 複製到本地緩存，因為 expo-file-system/legacy 無法直接讀取
         // ph:// 是 Photos 框架的引用，必須先導出為 file:// URI 才能被 getInfoAsync / uploadAsync 使用
@@ -668,7 +671,7 @@ export function FishSubmitScreen({ navigation, route }: Props) {
       let exif_datetime: string | null = null;
       let gpsSource = 'local';
 
-      const localResult = await checkPhotoGPS(uri, undefined);
+      const localResult = await checkPhotoGPS(uri, iosExif, iosAssetId);
       console.log(`📸 [5/7] GPS 提取方法: checkedMethods=[${localResult.checkedMethods?.join(', ')}], hasGPS=${localResult.hasGPS}, reason=${localResult.reason || '無'}`);
       if (localResult.hasGPS && localResult.gps) {
         gpsData = localResult.gps;
@@ -699,9 +702,19 @@ export function FishSubmitScreen({ navigation, route }: Props) {
       console.log(`📸 [6/7] 預覽創建: id="${previewPhoto.id}", GPS=${previewPhoto.exifGps ? `(${previewPhoto.exifGps.latitude}, ${previewPhoto.exifGps.longitude})` : '使用當前位置'}`);
 
       // 關閉「正在檢查位置」提示
+      console.log('🖼️ [預覽Modal] 關閉「檢查位置」Modal...');
       setIsCheckingLocation(false);
 
+      // iOS：不能在前一個 Modal 關閉動畫進行時立即呈現新的 Modal，
+      // 否則預覽 Modal 會被「吞掉」，畫面看起來毫無反應（Android 無此限制）。
+      // 因此先等「檢查位置」Modal 完成關閉動畫，再顯示預覽 Modal。
+      if (Platform.OS === 'ios') {
+        console.log('🖼️ [預覽Modal] iOS：等待前一個 Modal 關閉動畫 (450ms)...');
+        await new Promise((resolve) => setTimeout(resolve, 450));
+      }
+
       // 顯示預覽
+      console.log(`🖼️ [預覽Modal] 呈現預覽 Modal (uri=${previewPhoto.uri?.substring(0, 60)}...)`);
       setGalleryPreviewPhoto(previewPhoto);
       console.log('📸 [7/7] 等待用戶確認 (預覽/取消)');
       console.log('📸 [圖片處理完成] ==========================================');
@@ -1002,11 +1015,11 @@ export function FishSubmitScreen({ navigation, route }: Props) {
 
         console.log('GPS位置:', '上傳位置:', uploadLoc, 'EXIF:', p.exifGps, 'EXIF時間:', p.exif_datetime);
 
-        // 將 EXIF 本地時間轉換為 UTC ISO 格式（加上 Z 後綴）
+        // 將 EXIF 本地時間轉換為 UTC ISO 格式
         // EXIF 時間沒有時區信息，代表拍攝地的本地時間（香港 UTC+8）
-        // 必須轉換為 UTC 後再發送給伺服器，否則 PostgreSQL 會誤解為 UTC 時間
+        // 附加 +08:00 讓 JavaScript 正確解析為 HKT，再透過 toISOString() 轉為 UTC
         const exifDatetimeUtc = p.exif_datetime
-          ? new Date(p.exif_datetime).toISOString()
+          ? new Date(p.exif_datetime + '+08:00').toISOString()
           : undefined;
 
         const body: Record<string, unknown> = {
