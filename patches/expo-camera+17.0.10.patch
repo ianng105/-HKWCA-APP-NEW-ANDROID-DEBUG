@@ -1,0 +1,191 @@
+diff --git a/node_modules/expo-camera/android/src/main/java/expo/modules/camera/CameraViewModule.kt b/node_modules/expo-camera/android/src/main/java/expo/modules/camera/CameraViewModule.kt
+index fffd251..4bc8a28 100644
+--- a/node_modules/expo-camera/android/src/main/java/expo/modules/camera/CameraViewModule.kt
++++ b/node_modules/expo-camera/android/src/main/java/expo/modules/camera/CameraViewModule.kt
+@@ -387,6 +387,14 @@ class CameraViewModule : Module() {
+         }
+       }
+ 
++      Prop("selectedLens") { view, lens: String? ->
++        lens?.let {
++          if (view.selectedLens != it) {
++            view.selectedLens = it
++          }
++        }
++      }
++
+       Prop("videoBitrate") { view, bitrate: Int? ->
+         bitrate?.let {
+           if (view.videoEncodingBitrate != it) {
+@@ -426,6 +434,10 @@ class CameraViewModule : Module() {
+         return@AsyncFunction view.getAvailablePictureSizes()
+       }
+ 
++      AsyncFunction("getAvailableLenses") { view: ExpoCameraView ->
++        return@AsyncFunction view.getAvailableLenses()
++      }
++
+       AsyncFunction("record") { view: ExpoCameraView, options: RecordingOptions, promise: Promise ->
+         if (!view.mute && !permissionsManager.hasGrantedPermissions(Manifest.permission.RECORD_AUDIO)) {
+           throw Exceptions.MissingPermissions(Manifest.permission.RECORD_AUDIO)
+diff --git a/node_modules/expo-camera/android/src/main/java/expo/modules/camera/ExpoCameraView.kt b/node_modules/expo-camera/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
+index fc56526..a2a1f28 100644
+--- a/node_modules/expo-camera/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
++++ b/node_modules/expo-camera/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
+@@ -143,6 +143,14 @@ class ExpoCameraView(
+       shouldCreateCamera = true
+     }
+ 
++  var selectedLens: String = "builtInWideAngleCamera"
++    set(value) {
++      if (field != value) {
++        field = value
++        shouldCreateCamera = true
++      }
++    }
++
+   var flashMode = FlashMode.OFF
+     set(value) {
+       field = value
+@@ -232,6 +240,8 @@ class ExpoCameraView(
+     }
+   )
+ 
++  private val onAvailableLensesChanged by EventDispatcher<Bundle>()
++
+   // Scanning-related properties
+   private var shouldScanBarcodes = false
+ 
+@@ -440,9 +450,18 @@ class ExpoCameraView(
+       }
+     }
+ 
+-    val cameraSelector = CameraSelector.Builder()
++    val cameraSelectorBuilder = CameraSelector.Builder()
+       .requireLensFacing(lensFacing.mapToCharacteristic())
+-      .build()
++
++    if (selectedLens.isNotEmpty()) {
++      cameraSelectorBuilder.addCameraFilter { cameraInfos ->
++        cameraInfos.filter { cameraInfo ->
++          classifyLens(cameraInfo) == selectedLens
++        }
++      }
++    }
++
++    val cameraSelector = cameraSelectorBuilder.build()
+ 
+     imageCaptureUseCase = ImageCapture.Builder()
+       .setResolutionSelector(resolutionSelector)
+@@ -599,6 +618,14 @@ class ExpoCameraView(
+         CameraState.Type.OPEN -> {
+           onCameraReady(Unit)
+           setTorchEnabled(enableTorch)
++          scope.launch {
++            val lenses = getAvailableLenses()
++            onAvailableLensesChanged(
++              Bundle().apply {
++                putStringArrayList("lenses", ArrayList(lenses))
++              }
++            )
++          }
+         }
+ 
+         else -> {}
+@@ -615,6 +642,52 @@ class ExpoCameraView(
+     } ?: emptyList()
+   }
+ 
++  @OptIn(ExperimentalCamera2Interop::class)
++  private fun classifyLens(cameraInfo: CameraInfo): String {
++    val camera2Info = Camera2CameraInfo.from(cameraInfo)
++
++    // Use focal length to identify lens type
++    try {
++      val focalLengths = camera2Info.getCameraCharacteristic(
++        CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS
++      ) as? FloatArray
++      if (focalLengths != null && focalLengths.isNotEmpty()) {
++        val minFocal = focalLengths.minOrNull() ?: return "builtInWideAngleCamera"
++        // Ultra-wide: < 3mm, Wide: 3-6mm, Telephoto: > 6mm
++        return when {
++          minFocal < 3.0f -> "builtInUltraWideCamera"
++          minFocal > 6.0f -> "builtInTelephotoCamera"
++          else -> "builtInWideAngleCamera"
++        }
++      }
++    } catch (_: Exception) { /* fall through to default */ }
++
++    return "builtInWideAngleCamera"
++  }
++
++  fun getAvailableLenses(): List<String> {
++    val targetLensFacing = lensFacing.mapToCharacteristic()
++    val provider = cameraProvider ?: return emptyList()
++
++    return provider.availableCameraInfos
++      .filter { cameraInfo ->
++        try {
++          val info = Camera2CameraInfo.from(cameraInfo)
++          val facing = info.getCameraCharacteristic(CameraCharacteristics.LENS_FACING) as? Int
++          facing == targetLensFacing
++        } catch (_: Exception) {
++          false
++        }
++      }
++      .map { classifyLens(it) }
++      .distinct()
++      .sortedWith(compareBy(
++        { it != "builtInWideAngleCamera" },
++        { it != "builtInUltraWideCamera" },
++        { it != "builtInTelephotoCamera" }
++      ))
++  }
++
+   fun resumePreview() {
+     shouldCreateCamera = true
+     previewPaused = false
+diff --git a/node_modules/expo-camera/android/src/main/java/expo/modules/camera/records/CameraRecords.kt b/node_modules/expo-camera/android/src/main/java/expo/modules/camera/records/CameraRecords.kt
+index a7efbf7..3e6b2b6 100644
+--- a/node_modules/expo-camera/android/src/main/java/expo/modules/camera/records/CameraRecords.kt
++++ b/node_modules/expo-camera/android/src/main/java/expo/modules/camera/records/CameraRecords.kt
+@@ -9,6 +9,27 @@ import expo.modules.kotlin.records.Field
+ import expo.modules.kotlin.records.Record
+ import expo.modules.kotlin.types.Enumerable
+ 
++object LensType {
++  const val WIDE = "builtInWideAngleCamera"
++  const val ULTRA_WIDE = "builtInUltraWideCamera"
++  const val TELEPHOTO = "builtInTelephotoCamera"
++
++  fun identify(focalLengths: FloatArray): String? {
++    if (focalLengths.isEmpty()) return null
++    val minFocal = focalLengths.minOrNull() ?: return null
++
++    // Identify by focal length heuristics (physical mm)
++    // Ultra-wide: typically 1.5-3mm (~13mm equivalent)
++    // Wide: typically 4-5.5mm (~26mm equivalent)
++    // Telephoto: typically 6mm+ (~52mm equivalent)
++    return when {
++      minFocal < 3.0f -> ULTRA_WIDE
++      minFocal > 6.0f -> TELEPHOTO
++      else -> WIDE
++    }
++  }
++}
++
+ enum class CameraType(val value: String) : Enumerable {
+   FRONT("front"),
+   BACK("back");
+diff --git a/node_modules/expo-camera/src/Camera.types.ts b/node_modules/expo-camera/src/Camera.types.ts
+index c9ea132..217230d 100644
+--- a/node_modules/expo-camera/src/Camera.types.ts
++++ b/node_modules/expo-camera/src/Camera.types.ts
+@@ -512,6 +512,7 @@ export type CameraNativeProps = {
+   onResponsiveOrientationChanged?: ResponsiveOrientationChangedListener;
+   onAvailableLensesChanged?: AvailableLensesChangedListener;
+   facing?: string;
++  selectedLens?: string;
+   flashMode?: string;
+   enableTorch?: boolean;
+   animateShutter?: boolean;

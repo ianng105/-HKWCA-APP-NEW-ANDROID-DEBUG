@@ -27,13 +27,16 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const zoomRangeRef = useRef({ min: 0, max: 1 });
+  const [availableLenses, setAvailableLenses] = useState<string[]>([]);
+  const [selectedLens, setSelectedLens] = useState<string | undefined>(undefined);
 
   const ZOOM_PRESETS = [0.5, 1, 2, 4, 6, 8];
 
   const zoomTargetForPreset = (preset: number) => {
     const { min, max } = zoomRangeRef.current;
-    // 0.5x → 0, 1x → 0.2, 2x → 0.314, 4x → 0.543, 6x → 0.771, 8x → 1.0
-    const t = preset <= 1 ? (preset - 0.5) / 2.5 : (preset - 1) / 8.75 + 0.2;
+    // 1x → 0, 2x → 0.143, 4x → 0.429, 6x → 0.714, 8x → 1.0
+    // 0.5x → -0.071 (clamped to 0 when ultra-wide lens unavailable)
+    const t = (preset - 1) / 7;
     return t * (max - min);
   };
 
@@ -60,10 +63,58 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   };
 
   const handleZoomPreset = (preset: number) => {
-    console.log(`${preset}x button is pressed`);
+    console.log(`[Camera] zoom preset tapped: ${preset}x`);
+
+    // Map zoom presets to physical lenses when available
+    if (preset === 0.5 && availableLenses.includes('builtInUltraWideCamera')) {
+      console.log('[Camera] switching to ultra-wide lens (0.5× optical)');
+      setSelectedLens('builtInUltraWideCamera');
+      setZoom(0);
+      return;
+    }
+    if (preset === 1 && availableLenses.includes('builtInWideAngleCamera')) {
+      console.log('[Camera] switching to wide lens (1× optical)');
+      setSelectedLens('builtInWideAngleCamera');
+      setZoom(0);
+      return;
+    }
+    if (preset === 2 && availableLenses.includes('builtInTelephotoCamera')) {
+      console.log('[Camera] switching to telephoto lens (2× optical)');
+      setSelectedLens('builtInTelephotoCamera');
+      setZoom(0);
+      return;
+    }
+
+    // Fallback: digital zoom on current lens
+    console.log(`[Camera] digital zoom to ${preset}x on current lens`);
     const target = zoomTargetForPreset(preset);
     const { min, max } = zoomRangeRef.current;
     setZoom(Math.min(Math.max(target, min), max));
+  };
+
+  const LENS_LABELS: Record<string, string> = {
+    'builtInUltraWideCamera': '0.5×',
+    'builtInWideAngleCamera': '1×',
+    'builtInTelephotoCamera': '2×',
+  };
+
+  const handleLensChange = (lens: string) => {
+    const label = LENS_LABELS[lens] ?? lens;
+    console.log(`[Camera] lens button tapped: ${lens} (${label})`);
+    setSelectedLens(lens);
+    setZoom(0); // Reset to base optical zoom for the selected lens
+  };
+
+  // Check if a zoom preset is active, considering both zoom level and lens selection
+  const isPresetActive = (preset: number) => {
+    // When zoom is at base (0), check if the corresponding lens is selected
+    if (zoom === 0) {
+      if (preset === 0.5 && selectedLens === 'builtInUltraWideCamera') return true;
+      if (preset === 1 && selectedLens === 'builtInWideAngleCamera') return true;
+      if (preset === 2 && selectedLens === 'builtInTelephotoCamera') return true;
+    }
+    // Fallback: check by zoom level
+    return Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05;
   };
 
   if (!permission) {
@@ -179,87 +230,135 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
-      
+
       <CameraView
         ref={cameraRef}
         style={styles.camera}
         facing={facing}
         zoom={zoom}
-        onCameraReady={() => {}}
-      >
-        {/* 頂部控制欄 */}
-        <View style={styles.topBar}>
-          <Pressable style={styles.topButton} onPress={onCancel}>
-            <Ionicons name="close" size={24} color="#FFFFFF" />
-          </Pressable>
+        selectedLens={selectedLens}
+        onCameraReady={() => {
+          // Fetch available lenses once the camera is ready
+          setTimeout(async () => {
+            try {
+              const lenses = await cameraRef.current?.getAvailableLensesAsync?.();
+              console.log('[Camera] available lenses:', JSON.stringify(lenses));
+              if (lenses && lenses.length > 0) {
+                setAvailableLenses(lenses);
+                if (!selectedLens && lenses.includes('builtInWideAngleCamera')) {
+                  setSelectedLens('builtInWideAngleCamera');
+                }
+              }
+            } catch (_) { /* ignore */ }
+          }, 300);
+        }}
+        onAvailableLensesChanged={(e: any) => {
+          const lenses: string[] = e?.nativeEvent?.lenses ?? e?.lenses ?? [];
+          console.log('[Camera] onAvailableLensesChanged:', JSON.stringify(lenses));
+          if (lenses.length > 0) {
+            setAvailableLenses(lenses);
+          }
+        }}
+      />
+
+      {/* 頂部控制欄 (overlay) */}
+      <View style={styles.topBar} pointerEvents="box-none">
+        <Pressable style={styles.topButton} onPress={onCancel}>
+          <Ionicons name="close" size={24} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      {/* 正在載入照片提示 (overlay) */}
+      {isCapturing && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <View style={styles.loadingContainer}>
+            <Ionicons name="hourglass" size={48} color="#FFFFFF" />
+            <ActivityIndicator size="large" color="#FFFFFF" style={styles.loadingSpinner} />
+            <Text style={styles.loadingText}>正在載入照片...</Text>
+          </View>
+        </View>
+      )}
+
+      {/* 底部控制欄 (overlay) */}
+      <SafeAreaView style={styles.bottomBar} pointerEvents="box-none">
+        {/* 縮放預設按鈕列 */}
+        <View style={styles.zoomRow}>
+          {ZOOM_PRESETS.map((preset) => (
+            <Pressable
+              key={preset}
+              style={[
+                styles.zoomPresetButton,
+                isPresetActive(preset) && styles.zoomPresetButtonActive,
+              ]}
+              onPress={() => handleZoomPreset(preset)}
+            >
+              <Text style={[
+                styles.zoomPresetText,
+                isPresetActive(preset) && styles.zoomPresetTextActive,
+              ]}>
+                {preset}x
+              </Text>
+            </Pressable>
+          ))}
         </View>
 
-        {/* 正在載入照片提示 */}
-        {isCapturing && (
-          <View style={styles.loadingOverlay}>
-            <View style={styles.loadingContainer}>
-              <Ionicons name="hourglass" size={48} color="#FFFFFF" />
-              <ActivityIndicator size="large" color="#FFFFFF" style={styles.loadingSpinner} />
-              <Text style={styles.loadingText}>正在載入照片...</Text>
-            </View>
+        {/* Lens selection row — show when multiple back cameras exist */}
+        {availableLenses.length > 1 && (
+          <View style={styles.lensRow}>
+            {availableLenses.map((lens) => {
+              const label = LENS_LABELS[lens] ?? lens;
+              return (
+                <Pressable
+                  key={lens}
+                  style={[
+                    styles.lensButton,
+                    selectedLens === lens && styles.lensButtonActive,
+                  ]}
+                  onPress={() => handleLensChange(lens)}
+                >
+                  <Text style={[
+                    styles.lensButtonText,
+                    selectedLens === lens && styles.lensButtonTextActive,
+                  ]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         )}
 
-        {/* 底部控制欄 */}
-        <SafeAreaView style={styles.bottomBar}>
-          {/* 縮放預設按鈕列 */}
-          <View style={styles.zoomRow}>
-            {ZOOM_PRESETS.map((preset) => (
-              <Pressable
-                key={preset}
-                style={[
-                  styles.zoomPresetButton,
-                  Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetButtonActive,
-                ]}
-                onPress={() => handleZoomPreset(preset)}
-              >
-                <Text style={[
-                  styles.zoomPresetText,
-                  Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetTextActive,
-                ]}>
-                  {preset}x
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+        <View style={styles.bottomControls}>
+          {/* 左邊：切換鏡頭 */}
+          <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
+            <Ionicons name="camera-reverse" size={28} color="#FFFFFF" />
+          </Pressable>
 
-          <View style={styles.bottomControls}>
-            {/* 左邊：切換鏡頭 */}
-            <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-              <Ionicons name="camera-reverse" size={28} color="#FFFFFF" />
+          {/* 中間：拍照按鈕 */}
+          <Pressable
+            style={[styles.captureButton, (!canAddMore || isCapturing) && styles.captureButtonDisabled]}
+            onPress={takePicture}
+            disabled={!canAddMore || isCapturing}
+          >
+            <View style={styles.captureButtonInner} />
+          </Pressable>
+
+          {/* 右邊：+/- 縮放按鈕 */}
+          <View style={styles.zoomPlusMinus}>
+            <Pressable style={styles.zoomButton} onPress={handleZoomOut}>
+              <Ionicons name="remove" size={20} color="#FFFFFF" />
             </Pressable>
-
-            {/* 中間：拍照按鈕 */}
-            <Pressable
-              style={[styles.captureButton, (!canAddMore || isCapturing) && styles.captureButtonDisabled]}
-              onPress={takePicture}
-              disabled={!canAddMore || isCapturing}
-            >
-              <View style={styles.captureButtonInner} />
+            <Pressable style={styles.zoomButton} onPress={handleZoomIn}>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
             </Pressable>
-
-            {/* 右邊：+/- 縮放按鈕 */}
-            <View style={styles.zoomPlusMinus}>
-              <Pressable style={styles.zoomButton} onPress={handleZoomOut}>
-                <Ionicons name="remove" size={20} color="#FFFFFF" />
-              </Pressable>
-              <Pressable style={styles.zoomButton} onPress={handleZoomIn}>
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-              </Pressable>
-            </View>
           </View>
+        </View>
 
-          {/* 提示文字 */}
-          <Text style={styles.hintText}>
-            {isSinglePhotoMode ? '請拍攝一張相片' : `${photos.length}/${maxPhotos} 張相片`}
-          </Text>
-        </SafeAreaView>
-      </CameraView>
+        {/* 提示文字 */}
+        <Text style={styles.hintText}>
+          {isSinglePhotoMode ? '請拍攝一張相片' : `${photos.length}/${maxPhotos} 張相片`}
+        </Text>
+      </SafeAreaView>
     </View>
   );
 }
@@ -636,5 +735,40 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 8,
     marginBottom: 12,
+  },
+
+  // Lens selection styles
+  lensRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    marginHorizontal: 40,
+    marginBottom: 8,
+    gap: 4,
+    alignSelf: 'center',
+  },
+  lensButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  lensButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  lensButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  lensButtonTextActive: {
+    color: '#000000',
   },
 });
