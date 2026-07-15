@@ -73,7 +73,7 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
       return;
     }
     if (preset === 1 && availableLenses.includes('builtInWideAngleCamera')) {
-      console.log('[Camera] switching to wide lens (1× optical)');
+      console.log('[Camera] switching to wide-angle lens (1× optical)');
       setSelectedLens('builtInWideAngleCamera');
       setZoom(0);
       return;
