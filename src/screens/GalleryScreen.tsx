@@ -204,6 +204,10 @@ export function GalleryScreen({ route }: Props) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          initialNumToRender={4}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews={true}
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => openDetail(item)}>
               <Image source={{ uri: getSignedUrl(item.id) || item.file_url }} style={styles.thumb} />

@@ -1,8 +1,14 @@
 /**
  * 共享的簽名 URL 緩存 — 所有畫面共用
  * 每個圖片的簽名 URL 只獲取一次，永久緩存
+ *
+ * 效能優化：
+ * - 批次並行數從 2 提高到 10，大幅減少總等待時間
+ * - 取得 URL 後立即透過 Image.prefetch 預加載圖片到原生緩存
+ * - 每批完成後立即通知 UI 重繪，圖片逐步顯示而非全部等待
  */
 
+import { Image } from 'react-native';
 import { getSubmissionImageUrl } from './api';
 
 // 持久緩存：key = submission_id, value = signed_url
@@ -11,9 +17,17 @@ const signedUrls: Record<string, string> = {};
 // 正在請求中的 ID（防止重複請求）
 const pendingIds = new Set<string>();
 
+// 已觸發 prefetch 的 URL（避免重複 prefetch）
+const prefetchedUrls = new Set<string>();
+
 // 訂閱者：當緩存更新時通知
 type Listener = () => void;
 const listeners = new Set<Listener>();
+
+// 並行批次大小（提高以減少等待輪數）
+const BATCH_SIZE = 10;
+// prefetch 自身的並行上限（避免同時發太多網路請求）
+const PREFETCH_CONCURRENCY = 6;
 
 export function subscribe(listener: Listener): () => void {
   listeners.add(listener);
@@ -45,7 +59,32 @@ export function cancelAllPending(): void {
 }
 
 /**
- * 解析簽名 URL（批量，每批最多 2 個，循環直到全部完成）
+ * 使用 Image.prefetch 預加載圖片到 React Native 原生圖片緩存
+ * 這樣後續 <Image source={{ uri }}> 可以直接從緩存讀取，無需重新下載
+ */
+async function prefetchImages(urls: string[]): Promise<void> {
+  const toFetch = urls.filter(u => u && !prefetchedUrls.has(u));
+  if (toFetch.length === 0) return;
+
+  // 標記為已 prefetch（無論成功與否都不重試，避免浪費）
+  toFetch.forEach(u => prefetchedUrls.add(u));
+
+  // 分批 prefetch，控制並行數
+  for (let i = 0; i < toFetch.length; i += PREFETCH_CONCURRENCY) {
+    const batch = toFetch.slice(i, i + PREFETCH_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(url => Image.prefetch(url))
+    );
+    const loaded = results.filter(r => r.status === 'fulfilled' && r.value).length;
+    if (loaded > 0) {
+      console.log(`🖼️ [Cache] prefetch 完成: ${loaded}/${batch.length}`);
+    }
+  }
+}
+
+/**
+ * 解析簽名 URL（批量並行，每批 BATCH_SIZE 個）
+ * 每批完成後立即通知 UI 並觸發 prefetch
  */
 export async function resolveBatch(submissions: Array<{ id: string; file_url: string; storage_path?: string | null }>): Promise<void> {
   const newItems = submissions.filter(item => !signedUrls[item.id] && !pendingIds.has(item.id));
@@ -53,9 +92,11 @@ export async function resolveBatch(submissions: Array<{ id: string; file_url: st
 
   newItems.forEach(item => pendingIds.add(item.id));
 
-  for (let i = 0; i < newItems.length; i += 2) {
-    const batch = newItems.slice(i, i + 2);
-    await Promise.all(batch.map(async (item) => {
+  console.log(`🖼️ [Cache] 開始解析 ${newItems.length} 個簽名 URL（每批 ${BATCH_SIZE} 個）`);
+
+  for (let i = 0; i < newItems.length; i += BATCH_SIZE) {
+    const batch = newItems.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(async (item) => {
       let storagePath = item.storage_path;
       if (!storagePath && item.file_url) {
         const match = item.file_url.match(/\/submissions\/(.+)$/);
@@ -66,10 +107,20 @@ export async function resolveBatch(submissions: Array<{ id: string; file_url: st
         if (signedUrl) {
           signedUrls[item.id] = signedUrl;
         }
+        return signedUrl;
       }
+      return null;
     }));
+    // 每批完成立即通知 UI（圖片逐步出現）
     notify();
+    // 背景 prefetch，不阻塞下一批 URL 解析
+    const validUrls = results.filter((u): u is string => u !== null);
+    if (validUrls.length > 0) {
+      prefetchImages(validUrls).catch(() => {});
+    }
   }
+
+  console.log(`🖼️ [Cache] 全部簽名 URL 解析完成`);
 }
 
 /**

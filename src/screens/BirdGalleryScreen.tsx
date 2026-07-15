@@ -317,6 +317,10 @@ export function BirdGalleryScreen({ route }: Props) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 80 + insets.bottom }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          initialNumToRender={4}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews={true}
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => openDetail(item)}>
               <View style={styles.imageContainer}>
