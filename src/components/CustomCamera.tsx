@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, StatusBar, Image, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, StatusBar, Image, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,17 +27,22 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const zoomRangeRef = useRef({ min: 0, max: 1 });
+
+  // iOS only: lens selection state for auto-switching (no manual buttons)
   const [availableLenses, setAvailableLenses] = useState<string[]>([]);
   const [selectedLens, setSelectedLens] = useState<string | undefined>(undefined);
 
   const ZOOM_PRESETS = [0.5, 1, 2, 4, 6, 8];
 
   const zoomTargetForPreset = (preset: number) => {
-    const { min, max } = zoomRangeRef.current;
-    // 1x → 0, 2x → 0.143, 4x → 0.429, 6x → 0.714, 8x → 1.0
-    // 0.5x → -0.071 (clamped to 0 when ultra-wide lens unavailable)
-    const t = (preset - 1) / 7;
-    return t * (max - min);
+    if (Platform.OS === 'android') {
+      // Android: main branch formula — maps presets across the full zoom range
+      const { min, max } = zoomRangeRef.current;
+      const t = preset <= 1 ? (preset - 0.5) / 2.5 : (preset - 1) / 8.75 + 0.2;
+      return t * (max - min);
+    }
+    // iOS: 0.5x → 0, 1x → 0.1, 2x → 0.3, 4x → 0.7, 6x → 1.1, 8x → 1.5
+    return (preset - 0.5) * 0.2;
   };
 
   const [zoom, setZoom] = useState(zoomTargetForPreset(1)); // start at 1x, not 0 (which represents 0.5x)
@@ -65,55 +70,57 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const handleZoomPreset = (preset: number) => {
     console.log(`[Camera] zoom preset tapped: ${preset}x`);
 
-    // Map zoom presets to physical lenses when available
-    if (preset === 0.5 && availableLenses.includes('builtInUltraWideCamera')) {
-      console.log('[Camera] switching to ultra-wide lens (0.5× optical)');
-      setSelectedLens('builtInUltraWideCamera');
-      setZoom(0);
-      return;
-    }
-    if (preset === 1 && availableLenses.includes('builtInWideAngleCamera')) {
-      console.log('[Camera] switching to wide-angle lens (1× optical)');
-      setSelectedLens('builtInWideAngleCamera');
-      setZoom(0);
-      return;
-    }
-    if (preset === 2 && availableLenses.includes('builtInTelephotoCamera')) {
-      console.log('[Camera] switching to telephoto lens (2× optical)');
-      setSelectedLens('builtInTelephotoCamera');
-      setZoom(0);
-      return;
+    if (Platform.OS === 'ios') {
+      // iOS: auto lens selection — no manual lens buttons
+      // 0.5x → ultrawide camera
+      if (preset === 0.5 && availableLenses.includes('builtInUltraWideCamera')) {
+        console.log('[Camera] switching to ultrawide lens (0.5× optical)');
+        setSelectedLens('builtInUltraWideCamera');
+        setZoom(0);
+        return;
+      }
+      // 1x–8x → same camera (wide-angle) with digital zoom
+      if (preset >= 1 && availableLenses.includes('builtInWideAngleCamera')) {
+        console.log(`[Camera] using wide-angle lens with digital zoom to ${preset}x`);
+        setSelectedLens('builtInWideAngleCamera');
+        if (preset === 1) {
+          setZoom(0); // base optical for 1×
+        } else {
+          const target = zoomTargetForPreset(preset);
+          const { min, max } = zoomRangeRef.current;
+          setZoom(Math.min(Math.max(target, min), max));
+        }
+        return;
+      }
     }
 
-    // Fallback: digital zoom on current lens
+    // Android: pure digital zoom (or iOS fallback if no matching lens)
     console.log(`[Camera] digital zoom to ${preset}x on current lens`);
     const target = zoomTargetForPreset(preset);
     const { min, max } = zoomRangeRef.current;
     setZoom(Math.min(Math.max(target, min), max));
   };
 
-  const LENS_LABELS: Record<string, string> = {
-    'builtInUltraWideCamera': '0.5×',
-    'builtInWideAngleCamera': '1×',
-    'builtInTelephotoCamera': '2×',
-  };
-
-  const handleLensChange = (lens: string) => {
-    const label = LENS_LABELS[lens] ?? lens;
-    console.log(`[Camera] lens button tapped: ${lens} (${label})`);
-    setSelectedLens(lens);
-    setZoom(0); // Reset to base optical zoom for the selected lens
-  };
-
-  // Check if a zoom preset is active, considering both zoom level and lens selection
+  // Check if a zoom preset is active
   const isPresetActive = (preset: number) => {
-    // When zoom is at base (0), check if the corresponding lens is selected
-    if (zoom === 0) {
-      if (preset === 0.5 && selectedLens === 'builtInUltraWideCamera') return true;
-      if (preset === 1 && selectedLens === 'builtInWideAngleCamera') return true;
-      if (preset === 2 && selectedLens === 'builtInTelephotoCamera') return true;
+    if (Platform.OS === 'ios') {
+      // 0.5x: active when on ultrawide lens at base zoom
+      if (preset === 0.5) {
+        return selectedLens === 'builtInUltraWideCamera' && zoom === 0;
+      }
+      // 1x: active when on wide-angle lens at base zoom
+      if (preset === 1) {
+        return selectedLens === 'builtInWideAngleCamera' && zoom === 0;
+      }
+      // 2x–8x: active when on wide-angle lens at matching digital zoom
+      if (preset >= 2) {
+        return (
+          selectedLens === 'builtInWideAngleCamera' &&
+          Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05
+        );
+      }
     }
-    // Fallback: check by zoom level
+    // Android: zoom level only
     return Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05;
   };
 
@@ -138,13 +145,13 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
     if (cameraRef.current && canAddMore && !isCapturing) {
       try {
         setIsCapturing(true);
-        
+
         const photo = await cameraRef.current.takePictureAsync({
           imageType: 'jpg',
           quality: 1.0,
           exif: true,
         });
-        
+
         if (photo?.uri) {
           let exifDatetime: string | undefined;
           if (photo.exif) {
@@ -196,10 +203,10 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#000000" />
-        
+
         {/* 預覽圖片 */}
         <Image source={{ uri: previewUri }} style={styles.previewImage} />
-        
+
         {/* 底部按鈕區域 */}
         <View style={styles.actionBar}>
           {/* 取消按鈕 */}
@@ -223,7 +230,7 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
       </View>
     );
   }
-  
+
   console.log('[CustomCamera] ⏭️ 跳過預覽界面，進入拍攝模式');
 
   // 拍攝模式
@@ -238,21 +245,24 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
         zoom={zoom}
         selectedLens={selectedLens}
         onCameraReady={() => {
-          // Fetch available lenses once the camera is ready
-          setTimeout(async () => {
-            try {
-              const lenses = await cameraRef.current?.getAvailableLensesAsync?.();
-              console.log('[Camera] available lenses:', JSON.stringify(lenses));
-              if (lenses && lenses.length > 0) {
-                setAvailableLenses(lenses);
-                if (!selectedLens && lenses.includes('builtInWideAngleCamera')) {
-                  setSelectedLens('builtInWideAngleCamera');
+          if (Platform.OS === 'ios') {
+            // iOS: Fetch available lenses for auto lens switching
+            setTimeout(async () => {
+              try {
+                const lenses = await cameraRef.current?.getAvailableLensesAsync?.();
+                console.log('[Camera] available lenses:', JSON.stringify(lenses));
+                if (lenses && lenses.length > 0) {
+                  setAvailableLenses(lenses);
+                  if (!selectedLens && lenses.includes('builtInWideAngleCamera')) {
+                    setSelectedLens('builtInWideAngleCamera');
+                  }
                 }
-              }
-            } catch (_) { /* ignore */ }
-          }, 300);
+              } catch (_) { /* ignore */ }
+            }, 300);
+          }
         }}
         onAvailableLensesChanged={(e: any) => {
+          if (Platform.OS !== 'ios') return;
           const lenses: string[] = e?.nativeEvent?.lenses ?? e?.lenses ?? [];
           console.log('[Camera] onAvailableLensesChanged:', JSON.stringify(lenses));
           if (lenses.length > 0) {
@@ -302,32 +312,6 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
           ))}
         </View>
 
-        {/* Lens selection row — show when multiple back cameras exist */}
-        {availableLenses.length > 1 && (
-          <View style={styles.lensRow}>
-            {availableLenses.map((lens) => {
-              const label = LENS_LABELS[lens] ?? lens;
-              return (
-                <Pressable
-                  key={lens}
-                  style={[
-                    styles.lensButton,
-                    selectedLens === lens && styles.lensButtonActive,
-                  ]}
-                  onPress={() => handleLensChange(lens)}
-                >
-                  <Text style={[
-                    styles.lensButtonText,
-                    selectedLens === lens && styles.lensButtonTextActive,
-                  ]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
         <View style={styles.bottomControls}>
           {/* 左邊：切換鏡頭 */}
           <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
@@ -371,7 +355,7 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
-  
+
   // 權限請求
   permissionContainer: {
     flex: 1,
@@ -735,40 +719,5 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 8,
     marginBottom: 12,
-  },
-
-  // Lens selection styles
-  lensRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    marginHorizontal: 40,
-    marginBottom: 8,
-    gap: 4,
-    alignSelf: 'center',
-  },
-  lensButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 50,
-  },
-  lensButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  },
-  lensButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  lensButtonTextActive: {
-    color: '#000000',
   },
 });
