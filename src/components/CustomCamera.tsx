@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, StatusBar, Image, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, StatusBar, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,102 +26,18 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const zoomRangeRef = useRef({ min: 0, max: 1 });
-
-  // iOS only: lens selection state for auto-switching (no manual buttons)
-  const [availableLenses, setAvailableLenses] = useState<string[]>([]);
-  const [selectedLens, setSelectedLens] = useState<string | undefined>(undefined);
-
-  const ZOOM_PRESETS = [0.5, 1, 2, 4, 6, 8];
-
-  const zoomTargetForPreset = (preset: number) => {
-    if (Platform.OS === 'android') {
-      // Android: main branch formula — maps presets across the full zoom range
-      const { min, max } = zoomRangeRef.current;
-      const t = preset <= 1 ? (preset - 0.5) / 2.5 : (preset - 1) / 8.75 + 0.2;
-      return t * (max - min);
-    }
-    // iOS: 0.5x → 0, 1x → 0.1, 2x → 0.3, 4x → 0.7, 6x → 1.1, 8x → 1.5
-    return (preset - 0.5) * 0.2;
-  };
-
-  const [zoom, setZoom] = useState(zoomTargetForPreset(1)); // start at 1x, not 0 (which represents 0.5x)
+  const [zoom, setZoom] = useState(0);
 
   const canAddMore = photos.length < maxPhotos;
   // 啟用預覽模式（拍照後顯示確定/重拍按鈕）
   const isSinglePhotoMode = enablePreview;
 
   const handleZoomIn = () => {
-    console.log('zoom in (+) button pressed');
-    setZoom((prev) => {
-      const { max } = zoomRangeRef.current;
-      return Math.min(prev + 0.1, max);
-    });
+    setZoom((prev) => Math.min(prev + 0.25, 1));
   };
 
   const handleZoomOut = () => {
-    console.log('zoom out (-) button pressed');
-    setZoom((prev) => {
-      const { min } = zoomRangeRef.current;
-      return Math.max(prev - 0.1, min);
-    });
-  };
-
-  const handleZoomPreset = (preset: number) => {
-    console.log(`[Camera] zoom preset tapped: ${preset}x`);
-
-    if (Platform.OS === 'ios') {
-      // iOS: auto lens selection — no manual lens buttons
-      // 0.5x → ultrawide camera
-      if (preset === 0.5 && availableLenses.includes('builtInUltraWideCamera')) {
-        console.log('[Camera] switching to ultrawide lens (0.5× optical)');
-        setSelectedLens('builtInUltraWideCamera');
-        setZoom(0);
-        return;
-      }
-      // 1x–8x → same camera (wide-angle) with digital zoom
-      if (preset >= 1 && availableLenses.includes('builtInWideAngleCamera')) {
-        console.log(`[Camera] using wide-angle lens with digital zoom to ${preset}x`);
-        setSelectedLens('builtInWideAngleCamera');
-        if (preset === 1) {
-          setZoom(0); // base optical for 1×
-        } else {
-          const target = zoomTargetForPreset(preset);
-          const { min, max } = zoomRangeRef.current;
-          setZoom(Math.min(Math.max(target, min), max));
-        }
-        return;
-      }
-    }
-
-    // Android: pure digital zoom (or iOS fallback if no matching lens)
-    console.log(`[Camera] digital zoom to ${preset}x on current lens`);
-    const target = zoomTargetForPreset(preset);
-    const { min, max } = zoomRangeRef.current;
-    setZoom(Math.min(Math.max(target, min), max));
-  };
-
-  // Check if a zoom preset is active
-  const isPresetActive = (preset: number) => {
-    if (Platform.OS === 'ios') {
-      // 0.5x: active when on ultrawide lens at base zoom
-      if (preset === 0.5) {
-        return selectedLens === 'builtInUltraWideCamera' && zoom === 0;
-      }
-      // 1x: active when on wide-angle lens at base zoom
-      if (preset === 1) {
-        return selectedLens === 'builtInWideAngleCamera' && zoom === 0;
-      }
-      // 2x–8x: active when on wide-angle lens at matching digital zoom
-      if (preset >= 2) {
-        return (
-          selectedLens === 'builtInWideAngleCamera' &&
-          Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05
-        );
-      }
-    }
-    // Android: zoom level only
-    return Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05;
+    setZoom((prev) => Math.max(prev - 0.25, 0));
   };
 
   if (!permission) {
@@ -243,32 +159,6 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
         style={styles.camera}
         facing={facing}
         zoom={zoom}
-        selectedLens={selectedLens}
-        onCameraReady={() => {
-          if (Platform.OS === 'ios') {
-            // iOS: Fetch available lenses for auto lens switching
-            setTimeout(async () => {
-              try {
-                const lenses = await cameraRef.current?.getAvailableLensesAsync?.();
-                console.log('[Camera] available lenses:', JSON.stringify(lenses));
-                if (lenses && lenses.length > 0) {
-                  setAvailableLenses(lenses);
-                  if (!selectedLens && lenses.includes('builtInWideAngleCamera')) {
-                    setSelectedLens('builtInWideAngleCamera');
-                  }
-                }
-              } catch (_) { /* ignore */ }
-            }, 300);
-          }
-        }}
-        onAvailableLensesChanged={(e: any) => {
-          if (Platform.OS !== 'ios') return;
-          const lenses: string[] = e?.nativeEvent?.lenses ?? e?.lenses ?? [];
-          console.log('[Camera] onAvailableLensesChanged:', JSON.stringify(lenses));
-          if (lenses.length > 0) {
-            setAvailableLenses(lenses);
-          }
-        }}
       />
 
       {/* 頂部控制欄 (overlay) */}
@@ -291,32 +181,23 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
 
       {/* 底部控制欄 (overlay) */}
       <SafeAreaView style={styles.bottomBar} pointerEvents="box-none">
-        {/* 縮放預設按鈕列 */}
-        <View style={styles.zoomRow}>
-          {ZOOM_PRESETS.map((preset) => (
-            <Pressable
-              key={preset}
-              style={[
-                styles.zoomPresetButton,
-                isPresetActive(preset) && styles.zoomPresetButtonActive,
-              ]}
-              onPress={() => handleZoomPreset(preset)}
-            >
-              <Text style={[
-                styles.zoomPresetText,
-                isPresetActive(preset) && styles.zoomPresetTextActive,
-              ]}>
-                {preset}x
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
         <View style={styles.bottomControls}>
-          {/* 左邊：切換鏡頭 */}
-          <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-            <Ionicons name="camera-reverse" size={28} color="#FFFFFF" />
-          </Pressable>
+          {/* 左邊：縮放控制 */}
+          <View style={styles.zoomControls}>
+            <Pressable
+              style={[styles.zoomButton, zoom <= 0 && styles.zoomButtonDisabled]}
+              onPress={handleZoomOut}
+            >
+              <Ionicons name="remove" size={24} color={zoom <= 0 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+            </Pressable>
+            <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
+            <Pressable
+              style={[styles.zoomButton, zoom >= 1 && styles.zoomButtonDisabled]}
+              onPress={handleZoomIn}
+            >
+              <Ionicons name="add" size={24} color={zoom >= 1 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+            </Pressable>
+          </View>
 
           {/* 中間：拍照按鈕 */}
           <Pressable
@@ -327,15 +208,10 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
             <View style={styles.captureButtonInner} />
           </Pressable>
 
-          {/* 右邊：+/- 縮放按鈕 */}
-          <View style={styles.zoomPlusMinus}>
-            <Pressable style={styles.zoomButton} onPress={handleZoomOut}>
-              <Ionicons name="remove" size={20} color="#FFFFFF" />
-            </Pressable>
-            <Pressable style={styles.zoomButton} onPress={handleZoomIn}>
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-            </Pressable>
-          </View>
+          {/* 右邊：切換鏡頭 */}
+          <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
+            <Ionicons name="camera-reverse" size={28} color="#FFFFFF" />
+          </Pressable>
         </View>
 
         {/* 提示文字 */}
@@ -415,25 +291,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 40,
-    paddingVertical: 16,
-  },
-  zoomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    marginHorizontal: 40,
-    marginTop: 12,
-    gap: 4,
-    alignSelf: 'center',
-  },
-  zoomPlusMinus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    paddingVertical: 20,
   },
   sideButton: {
     width: 50,
@@ -448,38 +306,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 20,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 4,
+    minWidth: 80,
     justifyContent: 'center',
-    gap: 4,
-  },
-  zoomPresetButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 28,
-  },
-  zoomPresetButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  },
-  zoomPresetText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  zoomPresetTextActive: {
-    color: '#000000',
   },
   zoomButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  zoomButtonDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  zoomText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 30,
+    textAlign: 'center',
+    marginHorizontal: 4,
   },
   galleryButton: {
     width: 50,
