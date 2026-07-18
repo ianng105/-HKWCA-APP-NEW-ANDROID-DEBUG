@@ -26,18 +26,44 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const [zoom, setZoom] = useState(0);
+  const zoomRangeRef = useRef({ min: 0, max: 1 });
+
+  const ZOOM_PRESETS = [0.5, 1, 2, 4, 6, 8];
+
+  const zoomTargetForPreset = (preset: number) => {
+    const { min, max } = zoomRangeRef.current;
+    // 0.5x → 0, 1x → 0.2, 2x → 0.314, 4x → 0.543, 6x → 0.771, 8x → 1.0
+    const t = preset <= 1 ? (preset - 0.5) / 2.5 : (preset - 1) / 8.75 + 0.2;
+    return t * (max - min);
+  };
+
+  const [zoom, setZoom] = useState(zoomTargetForPreset(1)); // start at 1x, not 0 (which represents 0.5x)
 
   const canAddMore = photos.length < maxPhotos;
   // 啟用預覽模式（拍照後顯示確定/重拍按鈕）
   const isSinglePhotoMode = enablePreview;
 
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.25, 1));
+    console.log('zoom in (+) button pressed');
+    setZoom((prev) => {
+      const { max } = zoomRangeRef.current;
+      return Math.min(prev + 0.1, max);
+    });
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.25, 0));
+    console.log('zoom out (-) button pressed');
+    setZoom((prev) => {
+      const { min } = zoomRangeRef.current;
+      return Math.max(prev - 0.1, min);
+    });
+  };
+
+  const handleZoomPreset = (preset: number) => {
+    console.log(`${preset}x button is pressed`);
+    const target = zoomTargetForPreset(preset);
+    const { min, max } = zoomRangeRef.current;
+    setZoom(Math.min(Math.max(target, min), max));
   };
 
   if (!permission) {
@@ -61,13 +87,13 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
     if (cameraRef.current && canAddMore && !isCapturing) {
       try {
         setIsCapturing(true);
-
+        
         const photo = await cameraRef.current.takePictureAsync({
           imageType: 'jpg',
           quality: 1.0,
           exif: true,
         });
-
+        
         if (photo?.uri) {
           let exifDatetime: string | undefined;
           if (photo.exif) {
@@ -119,10 +145,10 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#000000" />
-
+        
         {/* 預覽圖片 */}
         <Image source={{ uri: previewUri }} style={styles.previewImage} />
-
+        
         {/* 底部按鈕區域 */}
         <View style={styles.actionBar}>
           {/* 取消按鈕 */}
@@ -146,79 +172,94 @@ export function CustomCamera({ onCapture, onComplete, onCancel, onDelete, photos
       </View>
     );
   }
-
+  
   console.log('[CustomCamera] ⏭️ 跳過預覽界面，進入拍攝模式');
 
   // 拍攝模式
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
-
+      
       <CameraView
         ref={cameraRef}
         style={styles.camera}
         facing={facing}
         zoom={zoom}
-      />
-
-      {/* 頂部控制欄 (overlay) */}
-      <View style={styles.topBar} pointerEvents="box-none">
-        <Pressable style={styles.topButton} onPress={onCancel}>
-          <Ionicons name="close" size={24} color="#FFFFFF" />
-        </Pressable>
-      </View>
-
-      {/* 正在載入照片提示 (overlay) */}
-      {isCapturing && (
-        <View style={styles.loadingOverlay} pointerEvents="none">
-          <View style={styles.loadingContainer}>
-            <Ionicons name="hourglass" size={48} color="#FFFFFF" />
-            <ActivityIndicator size="large" color="#FFFFFF" style={styles.loadingSpinner} />
-            <Text style={styles.loadingText}>正在載入照片...</Text>
-          </View>
-        </View>
-      )}
-
-      {/* 底部控制欄 (overlay) */}
-      <SafeAreaView style={styles.bottomBar} pointerEvents="box-none">
-        <View style={styles.bottomControls}>
-          {/* 左邊：縮放控制 */}
-          <View style={styles.zoomControls}>
-            <Pressable
-              style={[styles.zoomButton, zoom <= 0 && styles.zoomButtonDisabled]}
-              onPress={handleZoomOut}
-            >
-              <Ionicons name="remove" size={24} color={zoom <= 0 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
-            </Pressable>
-            <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
-            <Pressable
-              style={[styles.zoomButton, zoom >= 1 && styles.zoomButtonDisabled]}
-              onPress={handleZoomIn}
-            >
-              <Ionicons name="add" size={24} color={zoom >= 1 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
-            </Pressable>
-          </View>
-
-          {/* 中間：拍照按鈕 */}
-          <Pressable
-            style={[styles.captureButton, (!canAddMore || isCapturing) && styles.captureButtonDisabled]}
-            onPress={takePicture}
-            disabled={!canAddMore || isCapturing}
-          >
-            <View style={styles.captureButtonInner} />
-          </Pressable>
-
-          {/* 右邊：切換鏡頭 */}
-          <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-            <Ionicons name="camera-reverse" size={28} color="#FFFFFF" />
+        onCameraReady={() => {}}
+      >
+        {/* 頂部控制欄 */}
+        <View style={styles.topBar}>
+          <Pressable style={styles.topButton} onPress={onCancel}>
+            <Ionicons name="close" size={24} color="#FFFFFF" />
           </Pressable>
         </View>
 
-        {/* 提示文字 */}
-        <Text style={styles.hintText}>
-          {isSinglePhotoMode ? '請拍攝一張相片' : `${photos.length}/${maxPhotos} 張相片`}
-        </Text>
-      </SafeAreaView>
+        {/* 正在載入照片提示 */}
+        {isCapturing && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContainer}>
+              <Ionicons name="hourglass" size={48} color="#FFFFFF" />
+              <ActivityIndicator size="large" color="#FFFFFF" style={styles.loadingSpinner} />
+              <Text style={styles.loadingText}>正在載入照片...</Text>
+            </View>
+          </View>
+        )}
+
+        {/* 底部控制欄 */}
+        <SafeAreaView style={styles.bottomBar}>
+          {/* 縮放預設按鈕列 */}
+          <View style={styles.zoomRow}>
+            {ZOOM_PRESETS.map((preset) => (
+              <Pressable
+                key={preset}
+                style={[
+                  styles.zoomPresetButton,
+                  Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetButtonActive,
+                ]}
+                onPress={() => handleZoomPreset(preset)}
+              >
+                <Text style={[
+                  styles.zoomPresetText,
+                  Math.abs(zoom - zoomTargetForPreset(preset)) < 0.05 && styles.zoomPresetTextActive,
+                ]}>
+                  {preset}x
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.bottomControls}>
+            {/* 左邊：切換鏡頭 */}
+            <Pressable style={styles.sideButton} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
+              <Ionicons name="camera-reverse" size={28} color="#FFFFFF" />
+            </Pressable>
+
+            {/* 中間：拍照按鈕 */}
+            <Pressable
+              style={[styles.captureButton, (!canAddMore || isCapturing) && styles.captureButtonDisabled]}
+              onPress={takePicture}
+              disabled={!canAddMore || isCapturing}
+            >
+              <View style={styles.captureButtonInner} />
+            </Pressable>
+
+            {/* 右邊：+/- 縮放按鈕 */}
+            <View style={styles.zoomPlusMinus}>
+              <Pressable style={styles.zoomButton} onPress={handleZoomOut}>
+                <Ionicons name="remove" size={20} color="#FFFFFF" />
+              </Pressable>
+              <Pressable style={styles.zoomButton} onPress={handleZoomIn}>
+                <Ionicons name="add" size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* 提示文字 */}
+          <Text style={styles.hintText}>
+            {isSinglePhotoMode ? '請拍攝一張相片' : `${photos.length}/${maxPhotos} 張相片`}
+          </Text>
+        </SafeAreaView>
+      </CameraView>
     </View>
   );
 }
@@ -231,7 +272,7 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
-
+  
   // 權限請求
   permissionContainer: {
     flex: 1,
@@ -291,7 +332,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 40,
-    paddingVertical: 20,
+    paddingVertical: 16,
+  },
+  zoomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    marginHorizontal: 40,
+    marginTop: 12,
+    gap: 4,
+    alignSelf: 'center',
+  },
+  zoomPlusMinus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   sideButton: {
     width: 50,
@@ -306,29 +365,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 20,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
-    minWidth: 80,
     justifyContent: 'center',
+    gap: 4,
+  },
+  zoomPresetButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 28,
+  },
+  zoomPresetButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  zoomPresetText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  zoomPresetTextActive: {
+    color: '#000000',
   },
   zoomButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  zoomButtonDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  zoomText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    minWidth: 30,
-    textAlign: 'center',
-    marginHorizontal: 4,
   },
   galleryButton: {
     width: 50,
